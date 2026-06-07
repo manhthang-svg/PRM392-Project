@@ -1,28 +1,28 @@
 lib/
 │
-├── app/                      # Cấu hình toàn cục của ứng dụng
-│   ├── routes.dart           # Định nghĩa các tuyến đường chuyển màn hình (Routing)
-│   ├── theme.dart            # Cấu hình màu sắc (Pastel Pink, White), Font chữ toàn app
-│   └── app.dart              # File khởi tạo MaterialApp chính
+├── app/                      # Global application configuration
+│   ├── routes.dart           # Route definitions and navigation stack management
+│   ├── theme.dart            # UI styling configs (Pastel Pink, White, typography)
+│   └── app.dart              # Main MaterialApp initialization wrapper
 │
-├── core/                     # Nơi chứa các tài nguyên dùng chung cho toàn bộ app
-│   ├── constants/            # Định nghĩa hằng số (Kích thước, chuỗi văn bản, đường dẫn API)
-│   ├── network/              # Cấu hình HTTP Client (Dio/Http), WebSocket cho tính năng Chat
-│   ├── utils/                # Các hàm bổ trợ (Format ngày tháng, xử lý ảnh watermark, v.v.)
-│   └── widgets/              # Các UI Component dùng chung (Custom Button hồng, Text Field, Loading...)
+├── core/                     # Shared resources and utilities used across the entire app
+│   ├── constants/            # Global constants (dimensions, layout strings, API endpoints)
+│   ├── network/              # HTTP clients (Dio/Http) and WebSocket handlers for Chat
+│   ├── utils/                # Helper functions (Date formatting, watermarking engines)
+│   └── widgets/              # Reusable UI atoms (Custom Pink Buttons, Fields, Loaders)
 │
-├── features/                 # THƯ MỤC CHÍNH: Chia theo từng cụm tính năng trong sơ đồ Flow
+├── features/                 # CORE DIRECTORY: Segmented by functional business flows
 │   │
-│   ├── auth/                 # Cụm Đăng nhập (Splash screen, Login screen)
+│   ├── auth/                 # Authentication Flow (Splash screen, Login screen)
 │   │
-│   ├── newsfeed/             # Cụm Mạng xã hội (Purple Nodes: Origami newsfeed, comment)
+│   ├── newsfeed/             # Social Feed Flow (Origami newsfeed timeline, comments)
 │   │
-│   ├── explore/              # Cụm Thư viện & Gấp giấy (Red Nodes: Library, Browse, Step-by-step, Save result)
+│   ├── explore/              # Core Experience (Library, Browse, Step-by-step viewer)
 │   │
-│   ├── contribution/         # Cụm Creator Studio (Green Nodes: Create instruction, List, Fill info)
+│   ├── contribution/         # Creator Studio (Creation workflows, submission state logs)
 │   │
-│   ├── chat/                 # Cụm Trò chuyện (Yellow Nodes: List conversation, Conversation details)
+│   ├── chat/                 # Messaging Platform (Direct messages, active chatrooms)
 │   │
-│   └── profile/              # Cụm Cá nhân & Thành tựu (Blue + Orange Nodes: Profile, Update, Achievements)
+│   └── profile/              # Personal Hub (Profile configs, historical achievements)
 │
-└── main.dart                 # Điểm chạy ứng dụng đầu tiên (Root entry)
+└── main.dart                 # Application entry point (main function)
