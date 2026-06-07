@@ -1,3 +1,4 @@
+```text
 lib/
 │
 ├── app/                      # Global application configuration
