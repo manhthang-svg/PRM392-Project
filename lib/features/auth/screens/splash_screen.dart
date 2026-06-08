@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:origami/app/routes.dart';
-import 'package:origami/app/theme.dart';
+import 'package:origami/features/auth/data/repositories/auth_repository.dart';
 
 /// Màn hình Splash Screen với animation đẹp cho ứng dụng Origami
 class SplashScreen extends StatefulWidget {
@@ -161,8 +161,12 @@ class _SplashScreenState extends State<SplashScreen>
     _navigateNext();
   }
 
-  void _navigateNext() {
-    Navigator.of(context).pushReplacementNamed(AppRoutes.login);
+  Future<void> _navigateNext() async {
+    // Kiểm tra nếu đã đăng nhập thì vào thẳng newsfeed
+    final loggedIn = await AuthRepository.instance.isLoggedIn;
+    if (!mounted) return;
+    final route = loggedIn ? AppRoutes.newsfeed : AppRoutes.login;
+    Navigator.of(context).pushReplacementNamed(route);
   }
 
   @override
