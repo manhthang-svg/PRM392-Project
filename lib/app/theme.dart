@@ -1,123 +1,115 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
-/// Bảng màu chủ đạo của ứng dụng Origami
-class AppColors {
-  AppColors._();
-
-  // Màu chủ đạo: Pastel Pink
-  static const Color primary = Color(0xFFE8A0BF);
-  static const Color primaryLight = Color(0xFFF5C6D8);
-  static const Color primaryDark = Color(0xFFBE6F9A);
-
-  // Màu nền
-  static const Color background = Color(0xFFFFF5F8);
-  static const Color surface = Color(0xFFFFFFFF);
-  static const Color surfaceVariant = Color(0xFFFCEDF4);
-
-  // Màu text
-  static const Color textPrimary = Color(0xFF3D1A2E);
-  static const Color textSecondary = Color(0xFF8A5F73);
-  static const Color textHint = Color(0xFFBE9BAE);
-
-  // Màu accent
-  static const Color accent = Color(0xFFD4A5C9);
-  static const Color accentGold = Color(0xFFE8C99A);
-
-  // Màu phụ
-  static const Color white = Color(0xFFFFFFFF);
-  static const Color error = Color(0xFFD45A7A);
-  static const Color success = Color(0xFF7ABCA0);
+abstract final class AppColors {
+  static const primary = Color(0xFFF5B8C5);
+  static const primaryDark = Color(0xFFCD7187);
+  static const accent = Color(0xFFFCE7EC);
+  static const input = Color(0xFFF9F9F9);
+  static const muted = Color(0xFFECECF0);
+  static const mutedText = Color(0xFF717182);
+  static const ink = Color(0xFF242126);
+  static const border = Color(0x14000000);
 }
 
-/// Theme chính của ứng dụng Origami
-class AppTheme {
-  AppTheme._();
-
-  static ThemeData get lightTheme => ThemeData(
-    useMaterial3: true,
-    colorScheme: ColorScheme.fromSeed(
+abstract final class AppTheme {
+  static ThemeData get light {
+    final scheme = ColorScheme.fromSeed(
       seedColor: AppColors.primary,
       brightness: Brightness.light,
-    ).copyWith(
-      primary: AppColors.primary,
-      onPrimary: AppColors.white,
-      secondary: AppColors.accent,
-      surface: AppColors.surface,
-      onSurface: AppColors.textPrimary,
-      error: AppColors.error,
-    ),
+      primary: AppColors.primaryDark,
+      surface: Colors.white,
+    );
 
-    scaffoldBackgroundColor: AppColors.background,
-
-    textTheme: GoogleFonts.poppinsTextTheme().copyWith(
-      displayLarge: GoogleFonts.playfairDisplay(
-        fontSize: 57,
-        fontWeight: FontWeight.bold,
-        color: AppColors.textPrimary,
-      ),
-      displayMedium: GoogleFonts.playfairDisplay(
-        fontSize: 45,
-        fontWeight: FontWeight.bold,
-        color: AppColors.textPrimary,
-      ),
-      headlineLarge: GoogleFonts.playfairDisplay(
-        fontSize: 32,
-        fontWeight: FontWeight.bold,
-        color: AppColors.textPrimary,
-      ),
-      headlineMedium: GoogleFonts.playfairDisplay(
-        fontSize: 28,
-        fontWeight: FontWeight.w600,
-        color: AppColors.textPrimary,
-      ),
-      titleLarge: GoogleFonts.poppins(
-        fontSize: 22,
-        fontWeight: FontWeight.w600,
-        color: AppColors.textPrimary,
-      ),
-      bodyLarge: GoogleFonts.poppins(
-        fontSize: 16,
-        fontWeight: FontWeight.normal,
-        color: AppColors.textPrimary,
-      ),
-      bodyMedium: GoogleFonts.poppins(
-        fontSize: 14,
-        fontWeight: FontWeight.normal,
-        color: AppColors.textSecondary,
-      ),
-      labelLarge: GoogleFonts.poppins(
-        fontSize: 14,
-        fontWeight: FontWeight.w600,
-        color: AppColors.white,
-      ),
-    ),
-
-    appBarTheme: AppBarTheme(
-      backgroundColor: AppColors.background,
-      foregroundColor: AppColors.textPrimary,
-      elevation: 0,
-      centerTitle: true,
-      titleTextStyle: GoogleFonts.playfairDisplay(
-        fontSize: 20,
-        fontWeight: FontWeight.w600,
-        color: AppColors.textPrimary,
-      ),
-    ),
-
-    elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: AppColors.primary,
-        foregroundColor: AppColors.white,
-        minimumSize: const Size(double.infinity, 52),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        textStyle: GoogleFonts.poppins(
-          fontSize: 16,
+    return ThemeData(
+      useMaterial3: true,
+      colorScheme: scheme,
+      scaffoldBackgroundColor: Colors.white,
+      fontFamily: 'Arial',
+      textTheme: const TextTheme(
+        bodyLarge: TextStyle(color: AppColors.ink, height: 1.45),
+        bodyMedium: TextStyle(color: AppColors.ink, height: 1.4),
+        titleMedium: TextStyle(
+          color: AppColors.ink,
           fontWeight: FontWeight.w600,
         ),
       ),
-    ),
+      appBarTheme: const AppBarTheme(
+        backgroundColor: Colors.white,
+        foregroundColor: AppColors.ink,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+      ),
+      dividerTheme: const DividerThemeData(
+        color: AppColors.border,
+        thickness: 1,
+        space: 1,
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: AppColors.input,
+        hintStyle: const TextStyle(color: AppColors.mutedText),
+        prefixIconColor: AppColors.mutedText,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 15,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: AppColors.border),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: AppColors.border),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(
+            color: AppColors.primaryDark,
+            width: 1.4,
+          ),
+        ),
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: Colors.white,
+        indicatorColor: AppColors.accent,
+        surfaceTintColor: Colors.transparent,
+        height: 72,
+        labelTextStyle: WidgetStateProperty.resolveWith(
+          (states) => TextStyle(
+            fontSize: 11,
+            color: states.contains(WidgetState.selected)
+                ? AppColors.primaryDark
+                : AppColors.mutedText,
+          ),
+        ),
+        iconTheme: WidgetStateProperty.resolveWith(
+          (states) => IconThemeData(
+            color: states.contains(WidgetState.selected)
+                ? AppColors.primaryDark
+                : AppColors.mutedText,
+          ),
+        ),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: AppColors.ink,
+        contentTextStyle: const TextStyle(color: Colors.white),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+}
+
+TextStyle serifTitle(
+  double size, {
+  Color color = AppColors.ink,
+  FontWeight weight = FontWeight.w500,
+}) {
+  return TextStyle(
+    fontFamily: 'Georgia',
+    fontSize: size,
+    fontWeight: weight,
+    color: color,
+    height: 1.15,
   );
 }

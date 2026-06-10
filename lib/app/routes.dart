@@ -1,34 +1,89 @@
 import 'package:flutter/material.dart';
-import 'package:origami/features/auth/screens/splash_screen.dart';
+import 'package:origami/app/app_shell.dart';
 import 'package:origami/features/auth/screens/login_screen.dart';
-import 'package:origami/features/newsfeed/screens/newsfeed_screen.dart';
-import 'package:origami/features/explore/screens/explore_screen.dart';
-import 'package:origami/features/contribution/screens/contribution_screen.dart';
-import 'package:origami/features/chat/screens/chat_screen.dart';
-import 'package:origami/features/profile/screens/profile_screen.dart';
+import 'package:origami/features/auth/screens/splash_screen.dart';
+import 'package:origami/features/chat/screens/chat_screens.dart';
+import 'package:origami/features/contribution/screens/contribution_screens.dart';
+import 'package:origami/features/explore/screens/completion_screen.dart';
+import 'package:origami/features/explore/screens/step_by_step_screen.dart';
+import 'package:origami/features/explore/screens/tutorial_detail_screen.dart';
+import 'package:origami/features/newsfeed/screens/search_users_screen.dart';
+import 'package:origami/features/profile/screens/achievements_screen.dart';
+import 'package:origami/features/profile/screens/profile_screens.dart';
 
-/// Định nghĩa tất cả các route trong ứng dụng
-class AppRoutes {
-  AppRoutes._();
+abstract final class AppRoutes {
+  static const splash = '/';
+  static const login = '/login';
+  static const newsfeed = '/newsfeed';
+  static const library = '/library';
+  static const create = '/create';
+  static const messages = '/messages';
+  static const profile = '/profile';
+  static const tutorialDetail = '/tutorial/detail';
+  static const tutorialSteps = '/tutorial/steps';
+  static const tutorialComplete = '/tutorial/complete';
+  static const searchUsers = '/search/users';
+  static const achievements = '/achievements';
+  static const achievementDetail = '/achievements/detail';
+  static const savedTutorials = '/saved-tutorials';
+  static const editProfile = '/profile/edit';
+  static const publicProfile = '/profile/public';
+  static const followers = '/profile/followers';
+  static const following = '/profile/following';
+  static const conversationDetail = '/messages/detail';
+  static const createPost = '/create/post';
+  static const createInstruction = '/create/instruction';
+  static const instructionSubmissionDetail = '/create/instruction/detail';
+  static const postActivityDetail = '/create/post/detail';
+}
 
-  // Route names
-  static const String splash = '/';
-  static const String login = '/login';
-  static const String register = '/register';
-  static const String newsfeed = '/newsfeed';
-  static const String explore = '/explore';
-  static const String contribution = '/contribution';
-  static const String chat = '/chat';
-  static const String profile = '/profile';
+abstract final class AppRouter {
+  static Route<void> onGenerateRoute(RouteSettings settings) {
+    final argument = settings.arguments as String?;
+    final Widget page = switch (settings.name) {
+      AppRoutes.splash => const SplashScreen(),
+      AppRoutes.login => const LoginScreen(),
+      AppRoutes.newsfeed => const AppShell(initialIndex: 0),
+      AppRoutes.library => const AppShell(initialIndex: 1),
+      AppRoutes.create => const AppShell(initialIndex: 2),
+      AppRoutes.messages => const AppShell(initialIndex: 3),
+      AppRoutes.profile => const AppShell(initialIndex: 4),
+      AppRoutes.tutorialDetail => TutorialDetailScreen(
+        tutorialId: argument ?? 'classic-crane',
+      ),
+      AppRoutes.tutorialSteps => const StepByStepScreen(),
+      AppRoutes.tutorialComplete => const CompletionScreen(),
+      AppRoutes.searchUsers => const SearchUsersScreen(),
+      AppRoutes.achievements => const AchievementsScreen(),
+      AppRoutes.achievementDetail => AchievementDetailScreen(
+        historyId: argument ?? 'fold-1',
+      ),
+      AppRoutes.savedTutorials => const SavedTutorialsScreen(),
+      AppRoutes.editProfile => const EditProfileScreen(),
+      AppRoutes.publicProfile => PublicProfileScreen(
+        userId: argument ?? 'sarah',
+      ),
+      AppRoutes.followers => const SocialConnectionsScreen(
+        mode: SocialConnectionMode.followers,
+      ),
+      AppRoutes.following => const SocialConnectionsScreen(
+        mode: SocialConnectionMode.following,
+      ),
+      AppRoutes.conversationDetail => ConversationDetailScreen(
+        userId: argument ?? 'sarah',
+      ),
+      AppRoutes.createPost => const CreatePostScreen(),
+      AppRoutes.createInstruction => const CreateInstructionScreen(),
+      AppRoutes.instructionSubmissionDetail =>
+        InstructionSubmissionDetailScreen(
+          submissionId: argument ?? 'instruction-1',
+        ),
+      AppRoutes.postActivityDetail => PostActivityDetailScreen(
+        postId: argument ?? 'post-1',
+      ),
+      _ => const SplashScreen(),
+    };
 
-  /// Map các route name với widget tương ứng
-  static Map<String, WidgetBuilder> get routes => {
-    splash: (_) => const SplashScreen(),
-    login: (_) => const LoginScreen(),
-    newsfeed: (_) => const NewsfeedScreen(),
-    explore: (_) => const ExploreScreen(),
-    contribution: (_) => const ContributionScreen(),
-    chat: (_) => const ChatScreen(),
-    profile: (_) => const ProfileScreen(),
-  };
+    return MaterialPageRoute<void>(builder: (_) => page, settings: settings);
+  }
 }

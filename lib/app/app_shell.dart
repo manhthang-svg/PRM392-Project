@@ -1,0 +1,80 @@
+import 'package:flutter/material.dart';
+import 'package:origami/app/theme.dart';
+import 'package:origami/features/chat/screens/chat_screens.dart';
+import 'package:origami/features/contribution/screens/contribution_screens.dart';
+import 'package:origami/features/explore/screens/library_screen.dart';
+import 'package:origami/features/newsfeed/screens/newsfeed_screen.dart';
+import 'package:origami/features/profile/screens/profile_screens.dart';
+
+class AppShell extends StatefulWidget {
+  const AppShell({super.key, this.initialIndex = 0});
+
+  final int initialIndex;
+
+  @override
+  State<AppShell> createState() => _AppShellState();
+}
+
+class _AppShellState extends State<AppShell> {
+  late int _index;
+
+  static const _destinations = [
+    NavigationDestination(
+      icon: Icon(Icons.home_outlined),
+      selectedIcon: Icon(Icons.home),
+      label: 'Newsfeed',
+    ),
+    NavigationDestination(
+      icon: Icon(Icons.search_outlined),
+      selectedIcon: Icon(Icons.search),
+      label: 'Library',
+    ),
+    NavigationDestination(
+      icon: Icon(Icons.add_box_outlined),
+      selectedIcon: Icon(Icons.add_box),
+      label: 'Create',
+    ),
+    NavigationDestination(
+      icon: Icon(Icons.chat_bubble_outline),
+      selectedIcon: Icon(Icons.chat_bubble),
+      label: 'Messages',
+    ),
+    NavigationDestination(
+      icon: Icon(Icons.person_outline),
+      selectedIcon: Icon(Icons.person),
+      label: 'Profile',
+    ),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _index = widget.initialIndex.clamp(0, 4);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: IndexedStack(
+        index: _index,
+        children: const [
+          NewsfeedHomeTab(),
+          LibraryTab(),
+          CreatorHubTab(),
+          MessagesHomeTab(),
+          ProfileHomeTab(),
+        ],
+      ),
+      bottomNavigationBar: DecoratedBox(
+        decoration: const BoxDecoration(
+          border: Border(top: BorderSide(color: AppColors.border)),
+        ),
+        child: NavigationBar(
+          selectedIndex: _index,
+          onDestinationSelected: (value) => setState(() => _index = value),
+          destinations: _destinations,
+        ),
+      ),
+    );
+  }
+}
