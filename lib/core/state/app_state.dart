@@ -198,34 +198,6 @@ class FoldHistoryData {
   final String duration;
 }
 
-class ChatMessageData {
-  const ChatMessageData({
-    required this.text,
-    required this.sentByMe,
-    required this.time,
-  });
-
-  final String text;
-  final bool sentByMe;
-  final String time;
-}
-
-class ConversationData {
-  ConversationData({
-    required this.userId,
-    required this.lastMessage,
-    required this.timestamp,
-    required this.unread,
-    required List<ChatMessageData> messages,
-  }) : messages = List.of(messages);
-
-  final String userId;
-  String lastMessage;
-  String timestamp;
-  int unread;
-  final List<ChatMessageData> messages;
-}
-
 class AppState extends ChangeNotifier {
   XFile? currentAvatar;
 
@@ -499,89 +471,6 @@ class AppState extends ChangeNotifier {
     ),
   ];
 
-  final List<ConversationData> conversations = [
-    ConversationData(
-      userId: 'sarah',
-      lastMessage: 'Thanks for the tip on the crane!',
-      timestamp: '2m ago',
-      unread: 2,
-      messages: const [
-        ChatMessageData(
-          text: 'Your crane tutorial was really helpful.',
-          sentByMe: true,
-          time: '10:21',
-        ),
-        ChatMessageData(
-          text: 'I am glad it helped. Try keeping the center crease loose.',
-          sentByMe: false,
-          time: '10:23',
-        ),
-        ChatMessageData(
-          text: 'Thanks for the tip on the crane!',
-          sentByMe: false,
-          time: '10:24',
-        ),
-      ],
-    ),
-    ConversationData(
-      userId: 'yuki',
-      lastMessage: 'Check out my new tutorial',
-      timestamp: '1h ago',
-      unread: 0,
-      messages: const [
-        ChatMessageData(
-          text: 'I just published a modular star tutorial.',
-          sentByMe: false,
-          time: '09:15',
-        ),
-        ChatMessageData(
-          text: 'Check out my new tutorial',
-          sentByMe: false,
-          time: '09:16',
-        ),
-      ],
-    ),
-    ConversationData(
-      userId: 'alex',
-      lastMessage: 'Would love to collaborate!',
-      timestamp: '3h ago',
-      unread: 1,
-      messages: const [
-        ChatMessageData(
-          text: 'Would love to collaborate!',
-          sentByMe: false,
-          time: '07:40',
-        ),
-      ],
-    ),
-    ConversationData(
-      userId: 'maria',
-      lastMessage: 'Your dragon design is amazing',
-      timestamp: '1d ago',
-      unread: 0,
-      messages: const [
-        ChatMessageData(
-          text: 'Your dragon design is amazing',
-          sentByMe: false,
-          time: 'Yesterday',
-        ),
-      ],
-    ),
-    ConversationData(
-      userId: 'john',
-      lastMessage: 'Can you help me with step 5?',
-      timestamp: '2d ago',
-      unread: 0,
-      messages: const [
-        ChatMessageData(
-          text: 'Can you help me with step 5?',
-          sentByMe: false,
-          time: 'Mon',
-        ),
-      ],
-    ),
-  ];
-
   List<TutorialData> get savedTutorials => tutorials
       .where((tutorial) => savedTutorialIds.contains(tutorial.id))
       .toList();
@@ -595,22 +484,6 @@ class AppState extends ChangeNotifier {
   UserProfileData userById(String id) {
     if (id == currentUser.id) return currentUser;
     return users.firstWhere((user) => user.id == id);
-  }
-
-  ConversationData conversationByUserId(String id) {
-    final index = conversations.indexWhere(
-      (conversation) => conversation.userId == id,
-    );
-    if (index >= 0) return conversations[index];
-    final conversation = ConversationData(
-      userId: id,
-      lastMessage: 'Start a conversation',
-      timestamp: '',
-      unread: 0,
-      messages: [],
-    );
-    conversations.add(conversation);
-    return conversation;
   }
 
   void addPost({required String caption, required List<XFile> images}) {
@@ -718,18 +591,6 @@ class AppState extends ChangeNotifier {
       ),
     );
     post.comments++;
-    notifyListeners();
-  }
-
-  void sendMessage(String userId, String text) {
-    final conversation = conversationByUserId(userId);
-    conversation.messages.add(
-      ChatMessageData(text: text, sentByMe: true, time: 'Now'),
-    );
-    conversation
-      ..lastMessage = text
-      ..timestamp = 'Now'
-      ..unread = 0;
     notifyListeners();
   }
 }

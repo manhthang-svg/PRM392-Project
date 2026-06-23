@@ -18,6 +18,32 @@ Widget _testApp(Widget home) {
 }
 
 void main() {
+  testWidgets('App shell excludes chat navigation', (tester) async {
+    await tester.pumpWidget(_testApp(const AppShell()));
+
+    final navigationBar = find.byType(NavigationBar);
+    expect(
+      find.descendant(of: navigationBar, matching: find.text('Newsfeed')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: navigationBar, matching: find.text('Library')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: navigationBar, matching: find.text('Create')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: navigationBar, matching: find.text('Profile')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: navigationBar, matching: find.text('Messages')),
+      findsNothing,
+    );
+  });
+
   testWidgets('Create hub exposes both creator workflows', (tester) async {
     await tester.pumpWidget(_testApp(const CreatorHubTab()));
 

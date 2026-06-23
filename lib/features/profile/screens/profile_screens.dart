@@ -437,39 +437,19 @@ class PublicProfileScreen extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 22),
-          Row(
-            children: [
-              Expanded(
-                child: user.isFollowing
-                    ? OutlineAppButton(
-                        label: 'Following',
-                        icon: Icons.check,
-                        onPressed: () => state.toggleFollow(user.id),
-                      )
-                    : PrimaryButton(
-                        label: 'Follow',
-                        icon: Icons.person_add_outlined,
-                        onPressed: () => state.toggleFollow(user.id),
-                      ),
-              ),
-              const SizedBox(width: 10),
-              OutlinedButton(
-                onPressed: () => Navigator.pushNamed(
-                  context,
-                  AppRoutes.conversationDetail,
-                  arguments: user.id,
-                ),
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size(54, 52),
-                  padding: EdgeInsets.zero,
-                  side: const BorderSide(color: AppColors.border),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+          SizedBox(
+            width: double.infinity,
+            child: user.isFollowing
+                ? OutlineAppButton(
+                    label: 'Following',
+                    icon: Icons.check,
+                    onPressed: () => state.toggleFollow(user.id),
+                  )
+                : PrimaryButton(
+                    label: 'Follow',
+                    icon: Icons.person_add_outlined,
+                    onPressed: () => state.toggleFollow(user.id),
                   ),
-                ),
-                child: const Icon(Icons.chat_bubble_outline),
-              ),
-            ],
           ),
           const SizedBox(height: 27),
           Text('Origami Gallery', style: serifTitle(21)),

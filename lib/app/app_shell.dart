@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:origami/app/theme.dart';
-import 'package:origami/features/chat/screens/chat_screens.dart';
 import 'package:origami/features/contribution/screens/contribution_screens.dart';
 import 'package:origami/features/explore/screens/library_screen.dart';
 import 'package:origami/features/newsfeed/screens/newsfeed_screen.dart';
@@ -35,11 +34,6 @@ class _AppShellState extends State<AppShell> {
       label: 'Create',
     ),
     NavigationDestination(
-      icon: Icon(Icons.chat_bubble_outline),
-      selectedIcon: Icon(Icons.chat_bubble),
-      label: 'Messages',
-    ),
-    NavigationDestination(
       icon: Icon(Icons.person_outline),
       selectedIcon: Icon(Icons.person),
       label: 'Profile',
@@ -49,7 +43,7 @@ class _AppShellState extends State<AppShell> {
   @override
   void initState() {
     super.initState();
-    _index = widget.initialIndex.clamp(0, 4);
+    _index = widget.initialIndex.clamp(0, 3);
   }
 
   @override
@@ -61,7 +55,6 @@ class _AppShellState extends State<AppShell> {
           NewsfeedHomeTab(),
           LibraryTab(),
           CreatorHubTab(),
-          MessagesHomeTab(),
           ProfileHomeTab(),
         ],
       ),

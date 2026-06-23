@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:origami/app/app_shell.dart';
 import 'package:origami/features/auth/screens/login_screen.dart';
 import 'package:origami/features/auth/screens/splash_screen.dart';
-import 'package:origami/features/chat/screens/chat_screens.dart';
 import 'package:origami/features/contribution/screens/contribution_screens.dart';
 import 'package:origami/features/explore/screens/completion_screen.dart';
 import 'package:origami/features/explore/screens/step_by_step_screen.dart';
@@ -17,7 +16,6 @@ abstract final class AppRoutes {
   static const newsfeed = '/newsfeed';
   static const library = '/library';
   static const create = '/create';
-  static const messages = '/messages';
   static const profile = '/profile';
   static const tutorialDetail = '/tutorial/detail';
   static const tutorialSteps = '/tutorial/steps';
@@ -30,7 +28,6 @@ abstract final class AppRoutes {
   static const publicProfile = '/profile/public';
   static const followers = '/profile/followers';
   static const following = '/profile/following';
-  static const conversationDetail = '/messages/detail';
   static const createPost = '/create/post';
   static const createInstruction = '/create/instruction';
   static const instructionSubmissionDetail = '/create/instruction/detail';
@@ -46,8 +43,7 @@ abstract final class AppRouter {
       AppRoutes.newsfeed => const AppShell(initialIndex: 0),
       AppRoutes.library => const AppShell(initialIndex: 1),
       AppRoutes.create => const AppShell(initialIndex: 2),
-      AppRoutes.messages => const AppShell(initialIndex: 3),
-      AppRoutes.profile => const AppShell(initialIndex: 4),
+      AppRoutes.profile => const AppShell(initialIndex: 3),
       AppRoutes.tutorialDetail => TutorialDetailScreen(
         tutorialId: argument ?? 'classic-crane',
       ),
@@ -68,9 +64,6 @@ abstract final class AppRouter {
       ),
       AppRoutes.following => const SocialConnectionsScreen(
         mode: SocialConnectionMode.following,
-      ),
-      AppRoutes.conversationDetail => ConversationDetailScreen(
-        userId: argument ?? 'sarah',
       ),
       AppRoutes.createPost => const CreatePostScreen(),
       AppRoutes.createInstruction => const CreateInstructionScreen(),

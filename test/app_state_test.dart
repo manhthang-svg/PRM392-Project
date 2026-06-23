@@ -92,7 +92,7 @@ void main() {
       expect(post.comments, initialCount + 1);
     });
 
-    test('follows users, saves tutorials, and sends chat messages', () {
+    test('follows users and saves tutorials', () {
       final state = AppState();
       final yuki = state.userById('yuki');
 
@@ -101,11 +101,6 @@ void main() {
 
       state.toggleSavedTutorial('geometric-star');
       expect(state.savedTutorialIds, contains('geometric-star'));
-
-      state.sendMessage('sarah', 'Let us fold together');
-      final conversation = state.conversationByUserId('sarah');
-      expect(conversation.lastMessage, 'Let us fold together');
-      expect(conversation.messages.last.sentByMe, isTrue);
     });
 
     test('adds completed folds to achievement history', () {
