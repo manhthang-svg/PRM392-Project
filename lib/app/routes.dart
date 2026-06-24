@@ -1,44 +1,16 @@
 import 'package:flutter/material.dart';
-<<<<<<< Updated upstream
-=======
 import 'package:origami/app/app_shell.dart';
 import 'package:origami/features/auth/screens/login_screen.dart';
 import 'package:origami/features/auth/screens/signup_screen.dart';
->>>>>>> Stashed changes
 import 'package:origami/features/auth/screens/splash_screen.dart';
-import 'package:origami/features/auth/screens/login_screen.dart';
-import 'package:origami/features/newsfeed/screens/newsfeed_screen.dart';
-import 'package:origami/features/explore/screens/explore_screen.dart';
-import 'package:origami/features/contribution/screens/contribution_screen.dart';
-import 'package:origami/features/chat/screens/chat_screen.dart';
-import 'package:origami/features/profile/screens/profile_screen.dart';
+import 'package:origami/features/contribution/screens/contribution_screens.dart';
+import 'package:origami/features/explore/screens/completion_screen.dart';
+import 'package:origami/features/explore/screens/step_by_step_screen.dart';
+import 'package:origami/features/explore/screens/tutorial_detail_screen.dart';
+import 'package:origami/features/newsfeed/screens/search_users_screen.dart';
+import 'package:origami/features/profile/screens/achievements_screen.dart';
+import 'package:origami/features/profile/screens/profile_screens.dart';
 
-<<<<<<< Updated upstream
-/// Định nghĩa tất cả các route trong ứng dụng
-class AppRoutes {
-  AppRoutes._();
-
-  // Route names
-  static const String splash = '/';
-  static const String login = '/login';
-  static const String register = '/register';
-  static const String newsfeed = '/newsfeed';
-  static const String explore = '/explore';
-  static const String contribution = '/contribution';
-  static const String chat = '/chat';
-  static const String profile = '/profile';
-
-  /// Map các route name với widget tương ứng
-  static Map<String, WidgetBuilder> get routes => {
-    splash: (_) => const SplashScreen(),
-    login: (_) => const LoginScreen(),
-    newsfeed: (_) => const NewsfeedScreen(),
-    explore: (_) => const ExploreScreen(),
-    contribution: (_) => const ContributionScreen(),
-    chat: (_) => const ChatScreen(),
-    profile: (_) => const ProfileScreen(),
-  };
-=======
 abstract final class AppRoutes {
   static const splash = '/';
   static const login = '/login';
@@ -110,5 +82,4 @@ abstract final class AppRouter {
 
     return MaterialPageRoute<void>(builder: (_) => page, settings: settings);
   }
->>>>>>> Stashed changes
 }

@@ -1,5 +1,3 @@
-<<<<<<< Updated upstream
-=======
 // This is a basic Flutter widget test.
 //
 // To perform an interaction with a widget in your test, use the WidgetTester
@@ -7,21 +5,15 @@
 // gestures. You can also use WidgetTester to find child widgets in the widget
 // tree, read text, and verify that the values of widget properties are correct.
 
->>>>>>> Stashed changes
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
 import 'package:origami/app/app.dart';
 import 'package:origami/core/auth/auth_session.dart';
 import 'package:origami/core/auth/token_storage.dart';
 import 'package:origami/features/auth/screens/login_screen.dart';
 
 void main() {
-<<<<<<< Updated upstream
-  testWidgets('App smoke test — renders OrigamiApp', (WidgetTester tester) async {
-    await tester.pumpWidget(const OrigamiApp());
-    // Chỉ kiểm tra app render không crash
-    expect(find.byType(MaterialApp), findsOneWidget);
-=======
   testWidgets('shows splash screen and opens login', (tester) async {
     final session = AuthSession(tokenStorage: MemoryTokenStorage());
     addTearDown(session.dispose);
@@ -65,6 +57,5 @@ void main() {
     expect(find.text('Or continue with'), findsOneWidget);
     expect(find.text('Google'), findsOneWidget);
     expect(find.text('Apple'), findsOneWidget);
->>>>>>> Stashed changes
   });
 }

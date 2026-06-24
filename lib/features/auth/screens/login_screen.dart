@@ -1,18 +1,14 @@
 import 'package:flutter/material.dart';
+
+import 'package:origami/app/routes.dart';
 import 'package:origami/app/theme.dart';
-<<<<<<< Updated upstream
-=======
 import 'package:origami/core/auth/auth_session.dart';
 import 'package:origami/core/widgets/common.dart';
->>>>>>> Stashed changes
 
-/// Màn hình Login placeholder (sẽ được implement sau)
-class LoginScreen extends StatelessWidget {
+class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
   @override
-<<<<<<< Updated upstream
-=======
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
@@ -50,17 +46,11 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   @override
->>>>>>> Stashed changes
   Widget build(BuildContext context) {
     final session = AuthScope.of(context);
     final screenWidth = MediaQuery.sizeOf(context).width;
     final horizontalPadding = screenWidth < 360 ? 16.0 : 24.0;
     return Scaffold(
-<<<<<<< Updated upstream
-      backgroundColor: AppColors.background,
-      body: const Center(
-        child: Text('Login Screen - Coming Soon'),
-=======
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -197,8 +187,16 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ),
         ),
->>>>>>> Stashed changes
       ),
+    );
+  }
+
+  ButtonStyle _socialStyle() {
+    return OutlinedButton.styleFrom(
+      foregroundColor: AppColors.ink,
+      minimumSize: const Size(0, 50),
+      side: const BorderSide(color: AppColors.border),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
     );
   }
 }
