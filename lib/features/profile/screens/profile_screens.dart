@@ -3,6 +3,7 @@ import 'package:image_picker/image_picker.dart';
 
 import 'package:origami/app/routes.dart';
 import 'package:origami/app/theme.dart';
+import 'package:origami/core/auth/auth_session.dart';
 import 'package:origami/core/state/app_state.dart';
 import 'package:origami/core/widgets/common.dart';
 
@@ -224,6 +225,8 @@ Future<void> _confirmLogout(BuildContext context) async {
     ),
   );
   if (shouldLogout != true || !context.mounted) return;
+  await AuthScope.maybeOf(context, listen: false)?.logout();
+  if (!context.mounted) return;
   Navigator.of(
     context,
   ).pushNamedAndRemoveUntil(AppRoutes.login, (route) => false);

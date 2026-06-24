@@ -2,17 +2,22 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:origami/app/app_shell.dart';
 import 'package:origami/app/routes.dart';
+import 'package:origami/core/auth/auth_session.dart';
+import 'package:origami/core/auth/token_storage.dart';
 import 'package:origami/core/state/app_state.dart';
 import 'package:origami/features/contribution/screens/contribution_screens.dart';
 import 'package:origami/features/newsfeed/screens/newsfeed_screen.dart';
 import 'package:origami/features/profile/screens/profile_screens.dart';
 
 Widget _testApp(Widget home) {
-  return AppStateScope(
-    state: AppState(),
-    child: MaterialApp(
-      onGenerateRoute: AppRouter.onGenerateRoute,
-      home: Scaffold(body: home),
+  return AuthScope(
+    session: AuthSession(tokenStorage: MemoryTokenStorage()),
+    child: AppStateScope(
+      state: AppState(),
+      child: MaterialApp(
+        onGenerateRoute: AppRouter.onGenerateRoute,
+        home: Scaffold(body: home),
+      ),
     ),
   );
 }

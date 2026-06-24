@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:origami/app/routes.dart';
 import 'package:origami/app/theme.dart';
+import 'package:origami/core/auth/auth_session.dart';
 import 'package:origami/core/widgets/common.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -24,20 +25,43 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void _login() {
+  Future<void> _login() async {
     if (_formKey.currentState?.validate() != true) return;
-    Navigator.of(context).pushReplacementNamed(AppRoutes.newsfeed);
+    final session = AuthScope.of(context, listen: false);
+    final succeeded = await session.login(
+      email: _emailController.text.trim(),
+      password: _passwordController.text,
+    );
+    if (!mounted) return;
+    if (succeeded) {
+      Navigator.of(
+        context,
+      ).pushNamedAndRemoveUntil(AppRoutes.newsfeed, (route) => false);
+      return;
+    }
+    showAppMessage(
+      context,
+      session.errorMessage ?? 'Could not log in. Please try again.',
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final session = AuthScope.of(context);
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final horizontalPadding = screenWidth < 360 ? 16.0 : 24.0;
     return Scaffold(
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 440),
             child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(24, 36, 24, 28),
+              padding: EdgeInsets.fromLTRB(
+                horizontalPadding,
+                36,
+                horizontalPadding,
+                28,
+              ),
               child: Form(
                 key: _formKey,
                 child: Column(
@@ -58,7 +82,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     TextFormField(
                       key: const Key('emailField'),
                       controller: _emailController,
+                      enabled: !session.isBusy,
                       keyboardType: TextInputType.emailAddress,
+                      textInputAction: TextInputAction.next,
                       autofillHints: const [AutofillHints.email],
                       decoration: const InputDecoration(
                         hintText: 'your@email.com',
@@ -81,6 +107,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     TextFormField(
                       key: const Key('passwordField'),
                       controller: _passwordController,
+                      enabled: !session.isBusy,
                       obscureText: _obscurePassword,
                       autofillHints: const [AutofillHints.password],
                       decoration: InputDecoration(
@@ -103,71 +130,53 @@ class _LoginScreenState extends State<LoginScreen> {
                         }
                         return null;
                       },
-                      onFieldSubmitted: (_) => _login(),
+                      onFieldSubmitted: (_) {
+                        if (!session.isBusy) _login();
+                      },
                     ),
                     Align(
                       alignment: Alignment.centerRight,
                       child: TextButton(
                         onPressed: () =>
                             showAppMessage(context, 'Password reset link sent'),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
                         child: const Text('Forgot Password?'),
                       ),
                     ),
                     const SizedBox(height: 8),
-                    PrimaryButton(label: 'Log In', onPressed: _login),
-                    const SizedBox(height: 28),
-                    const Row(
-                      children: [
-                        Expanded(child: Divider()),
-                        Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 14),
-                          child: Text(
-                            'Or continue with',
-                            style: TextStyle(
-                              color: AppColors.mutedText,
-                              fontSize: 13,
-                            ),
-                          ),
-                        ),
-                        Expanded(child: Divider()),
-                      ],
+                    PrimaryButton(
+                      label: session.isBusy ? 'Logging in...' : 'Log In',
+                      onPressed: session.isBusy ? null : _login,
                     ),
+                    const SizedBox(height: 28),
+                    const _AuthDivider(),
                     const SizedBox(height: 22),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: _login,
-                            icon: const Icon(Icons.g_mobiledata, size: 25),
-                            label: const Text('Google'),
-                            style: _socialStyle(),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: _login,
-                            icon: const Icon(Icons.apple),
-                            label: const Text('Apple'),
-                            style: _socialStyle(),
-                          ),
-                        ),
-                      ],
+                    _SocialLoginButtons(
+                      busy: session.isBusy,
+                      style: _socialStyle(),
                     ),
                     const SizedBox(height: 26),
-                    Wrap(
-                      alignment: WrapAlignment.center,
-                      crossAxisAlignment: WrapCrossAlignment.center,
+                    Column(
                       children: [
-                        const Text(
-                          "Don't have an account?",
-                          style: TextStyle(color: AppColors.mutedText),
+                        const SizedBox(
+                          width: double.infinity,
+                          child: Text(
+                            "Don't have an account?",
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: AppColors.mutedText),
+                          ),
                         ),
                         TextButton(
-                          onPressed: () => showAppMessage(
-                            context,
-                            'Sign-up flow is ready for backend integration',
-                          ),
+                          onPressed: session.isBusy
+                              ? null
+                              : () => Navigator.pushNamed(
+                                  context,
+                                  AppRoutes.signup,
+                                ),
                           child: const Text('Sign Up'),
                         ),
                       ],
@@ -188,6 +197,80 @@ class _LoginScreenState extends State<LoginScreen> {
       minimumSize: const Size(0, 50),
       side: const BorderSide(color: AppColors.border),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+    );
+  }
+}
+
+class _AuthDivider extends StatelessWidget {
+  const _AuthDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    const label = Text(
+      'Or continue with',
+      textAlign: TextAlign.center,
+      style: TextStyle(color: AppColors.mutedText, fontSize: 13),
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 200) return label;
+        return const Row(
+          children: [
+            Expanded(child: Divider()),
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 14),
+              child: label,
+            ),
+            Expanded(child: Divider()),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _SocialLoginButtons extends StatelessWidget {
+  const _SocialLoginButtons({required this.busy, required this.style});
+
+  final bool busy;
+  final ButtonStyle style;
+
+  @override
+  Widget build(BuildContext context) {
+    final google = OutlinedButton.icon(
+      onPressed: busy
+          ? null
+          : () => showAppMessage(context, 'Google login is not configured yet'),
+      icon: const Icon(Icons.g_mobiledata, size: 25),
+      label: const Text('Google'),
+      style: style,
+    );
+    final apple = OutlinedButton.icon(
+      onPressed: busy
+          ? null
+          : () => showAppMessage(context, 'Apple login is not configured yet'),
+      icon: const Icon(Icons.apple),
+      label: const Text('Apple'),
+      style: style,
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 300) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [google, const SizedBox(height: 12), apple],
+          );
+        }
+        return Row(
+          children: [
+            Expanded(child: google),
+            const SizedBox(width: 12),
+            Expanded(child: apple),
+          ],
+        );
+      },
     );
   }
 }

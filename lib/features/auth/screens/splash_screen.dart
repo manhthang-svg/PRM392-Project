@@ -1,9 +1,8 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 
 import 'package:origami/app/routes.dart';
 import 'package:origami/app/theme.dart';
+import 'package:origami/core/auth/auth_session.dart';
 import 'package:origami/core/widgets/common.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -18,7 +17,6 @@ class _SplashScreenState extends State<SplashScreen>
   late final AnimationController _controller;
   late final Animation<double> _scale;
   late final Animation<double> _opacity;
-  Timer? _timer;
 
   @override
   void initState() {
@@ -30,16 +28,23 @@ class _SplashScreenState extends State<SplashScreen>
     _scale = CurvedAnimation(parent: _controller, curve: Curves.easeOutBack);
     _opacity = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
     _controller.forward();
-    _timer = Timer(const Duration(milliseconds: 2200), () {
-      if (mounted) {
-        Navigator.of(context).pushReplacementNamed(AppRoutes.login);
-      }
-    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _openInitialRoute());
+  }
+
+  Future<void> _openInitialRoute() async {
+    final session = AuthScope.of(context, listen: false);
+    await Future.wait([
+      session.initialize(),
+      Future<void>.delayed(const Duration(milliseconds: 1200)),
+    ]);
+    if (!mounted) return;
+    Navigator.of(context).pushReplacementNamed(
+      session.isAuthenticated ? AppRoutes.newsfeed : AppRoutes.login,
+    );
   }
 
   @override
   void dispose() {
-    _timer?.cancel();
     _controller.dispose();
     super.dispose();
   }

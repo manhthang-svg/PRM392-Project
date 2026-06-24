@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:origami/app/app_shell.dart';
 import 'package:origami/features/auth/screens/login_screen.dart';
+import 'package:origami/features/auth/screens/signup_screen.dart';
 import 'package:origami/features/auth/screens/splash_screen.dart';
 import 'package:origami/features/contribution/screens/contribution_screens.dart';
 import 'package:origami/features/explore/screens/completion_screen.dart';
@@ -13,6 +14,7 @@ import 'package:origami/features/profile/screens/profile_screens.dart';
 abstract final class AppRoutes {
   static const splash = '/';
   static const login = '/login';
+  static const signup = '/signup';
   static const newsfeed = '/newsfeed';
   static const library = '/library';
   static const create = '/create';
@@ -40,6 +42,7 @@ abstract final class AppRouter {
     final Widget page = switch (settings.name) {
       AppRoutes.splash => const SplashScreen(),
       AppRoutes.login => const LoginScreen(),
+      AppRoutes.signup => const SignupScreen(),
       AppRoutes.newsfeed => const AppShell(initialIndex: 0),
       AppRoutes.library => const AppShell(initialIndex: 1),
       AppRoutes.create => const AppShell(initialIndex: 2),
