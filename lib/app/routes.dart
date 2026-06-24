@@ -1,4 +1,10 @@
 import 'package:flutter/material.dart';
+<<<<<<< Updated upstream
+=======
+import 'package:origami/app/app_shell.dart';
+import 'package:origami/features/auth/screens/login_screen.dart';
+import 'package:origami/features/auth/screens/signup_screen.dart';
+>>>>>>> Stashed changes
 import 'package:origami/features/auth/screens/splash_screen.dart';
 import 'package:origami/features/auth/screens/login_screen.dart';
 import 'package:origami/features/newsfeed/screens/newsfeed_screen.dart';
@@ -7,6 +13,7 @@ import 'package:origami/features/contribution/screens/contribution_screen.dart';
 import 'package:origami/features/chat/screens/chat_screen.dart';
 import 'package:origami/features/profile/screens/profile_screen.dart';
 
+<<<<<<< Updated upstream
 /// Định nghĩa tất cả các route trong ứng dụng
 class AppRoutes {
   AppRoutes._();
@@ -31,4 +38,77 @@ class AppRoutes {
     chat: (_) => const ChatScreen(),
     profile: (_) => const ProfileScreen(),
   };
+=======
+abstract final class AppRoutes {
+  static const splash = '/';
+  static const login = '/login';
+  static const signup = '/signup';
+  static const newsfeed = '/newsfeed';
+  static const library = '/library';
+  static const create = '/create';
+  static const profile = '/profile';
+  static const tutorialDetail = '/tutorial/detail';
+  static const tutorialSteps = '/tutorial/steps';
+  static const tutorialComplete = '/tutorial/complete';
+  static const searchUsers = '/search/users';
+  static const achievements = '/achievements';
+  static const achievementDetail = '/achievements/detail';
+  static const savedTutorials = '/saved-tutorials';
+  static const editProfile = '/profile/edit';
+  static const publicProfile = '/profile/public';
+  static const followers = '/profile/followers';
+  static const following = '/profile/following';
+  static const createPost = '/create/post';
+  static const createInstruction = '/create/instruction';
+  static const instructionSubmissionDetail = '/create/instruction/detail';
+  static const postActivityDetail = '/create/post/detail';
+}
+
+abstract final class AppRouter {
+  static Route<void> onGenerateRoute(RouteSettings settings) {
+    final argument = settings.arguments as String?;
+    final Widget page = switch (settings.name) {
+      AppRoutes.splash => const SplashScreen(),
+      AppRoutes.login => const LoginScreen(),
+      AppRoutes.signup => const SignupScreen(),
+      AppRoutes.newsfeed => const AppShell(initialIndex: 0),
+      AppRoutes.library => const AppShell(initialIndex: 1),
+      AppRoutes.create => const AppShell(initialIndex: 2),
+      AppRoutes.profile => const AppShell(initialIndex: 3),
+      AppRoutes.tutorialDetail => TutorialDetailScreen(
+        tutorialId: argument ?? 'classic-crane',
+      ),
+      AppRoutes.tutorialSteps => const StepByStepScreen(),
+      AppRoutes.tutorialComplete => const CompletionScreen(),
+      AppRoutes.searchUsers => const SearchUsersScreen(),
+      AppRoutes.achievements => const AchievementsScreen(),
+      AppRoutes.achievementDetail => AchievementDetailScreen(
+        historyId: argument ?? 'fold-1',
+      ),
+      AppRoutes.savedTutorials => const SavedTutorialsScreen(),
+      AppRoutes.editProfile => const EditProfileScreen(),
+      AppRoutes.publicProfile => PublicProfileScreen(
+        userId: argument ?? 'sarah',
+      ),
+      AppRoutes.followers => const SocialConnectionsScreen(
+        mode: SocialConnectionMode.followers,
+      ),
+      AppRoutes.following => const SocialConnectionsScreen(
+        mode: SocialConnectionMode.following,
+      ),
+      AppRoutes.createPost => const CreatePostScreen(),
+      AppRoutes.createInstruction => const CreateInstructionScreen(),
+      AppRoutes.instructionSubmissionDetail =>
+        InstructionSubmissionDetailScreen(
+          submissionId: argument ?? 'instruction-1',
+        ),
+      AppRoutes.postActivityDetail => PostActivityDetailScreen(
+        postId: argument ?? 'post-1',
+      ),
+      _ => const SplashScreen(),
+    };
+
+    return MaterialPageRoute<void>(builder: (_) => page, settings: settings);
+  }
+>>>>>>> Stashed changes
 }

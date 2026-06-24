@@ -1,7 +1,16 @@
+<<<<<<< Updated upstream
 import 'dart:math' as math;
+=======
+>>>>>>> Stashed changes
 import 'package:flutter/material.dart';
 import 'package:origami/app/routes.dart';
+<<<<<<< Updated upstream
 import 'package:origami/features/auth/data/repositories/auth_repository.dart';
+=======
+import 'package:origami/app/theme.dart';
+import 'package:origami/core/auth/auth_session.dart';
+import 'package:origami/core/widgets/common.dart';
+>>>>>>> Stashed changes
 
 /// Màn hình Splash Screen với animation đẹp cho ứng dụng Origami
 class SplashScreen extends StatefulWidget {
@@ -12,6 +21,7 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen>
+<<<<<<< Updated upstream
     with TickerProviderStateMixin {
   // Controllers cho các animation
   late AnimationController _logoController;
@@ -36,6 +46,12 @@ class _SplashScreenState extends State<SplashScreen>
 
   // Progress bar
   late Animation<double> _progressAnim;
+=======
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _scale;
+  late final Animation<double> _opacity;
+>>>>>>> Stashed changes
 
   @override
   void initState() {
@@ -50,6 +66,7 @@ class _SplashScreenState extends State<SplashScreen>
       vsync: this,
       duration: const Duration(milliseconds: 1200),
     );
+<<<<<<< Updated upstream
 
     _logoScale = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
@@ -167,15 +184,37 @@ class _SplashScreenState extends State<SplashScreen>
     if (!mounted) return;
     final route = loggedIn ? AppRoutes.newsfeed : AppRoutes.login;
     Navigator.of(context).pushReplacementNamed(route);
+=======
+    _scale = CurvedAnimation(parent: _controller, curve: Curves.easeOutBack);
+    _opacity = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
+    _controller.forward();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _openInitialRoute());
+  }
+
+  Future<void> _openInitialRoute() async {
+    final session = AuthScope.of(context, listen: false);
+    await Future.wait([
+      session.initialize(),
+      Future<void>.delayed(const Duration(milliseconds: 1200)),
+    ]);
+    if (!mounted) return;
+    Navigator.of(context).pushReplacementNamed(
+      session.isAuthenticated ? AppRoutes.newsfeed : AppRoutes.login,
+    );
+>>>>>>> Stashed changes
   }
 
   @override
   void dispose() {
+<<<<<<< Updated upstream
     _logoController.dispose();
     _textController.dispose();
     _particleController.dispose();
     _shimmerController.dispose();
     _progressController.dispose();
+=======
+    _controller.dispose();
+>>>>>>> Stashed changes
     super.dispose();
   }
 

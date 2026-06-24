@@ -40,7 +40,11 @@ dependencies:
 
   # Date formatting
   intl: ^0.19.0
+<<<<<<< Updated upstream
   shared_preferences: ^2.5.5
+=======
+  flutter_secure_storage: 9.2.4
+>>>>>>> Stashed changes
 
 dev_dependencies:
   flutter_test:
