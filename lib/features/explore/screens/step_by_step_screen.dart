@@ -4,10 +4,13 @@ import 'package:flutter/material.dart';
 
 import 'package:origami/app/routes.dart';
 import 'package:origami/app/theme.dart';
+import 'package:origami/core/library/tutorial_models.dart';
 import 'package:origami/core/widgets/common.dart';
 
 class StepByStepScreen extends StatefulWidget {
-  const StepByStepScreen({super.key});
+  const StepByStepScreen({super.key, this.tutorial});
+
+  final TutorialDetailModel? tutorial;
 
   @override
   State<StepByStepScreen> createState() => _StepByStepScreenState();
@@ -31,8 +34,16 @@ class _StepByStepScreenState extends State<StepByStepScreen> {
     'Gently pull the wings apart and flatten the body. Your crane is complete.',
   ];
 
+  int get _stepCount => widget.tutorial?.steps.length ?? _instructions.length;
+
+  String get _description => widget.tutorial == null
+      ? _instructions[_step]
+      : widget.tutorial!.steps[_step].description;
+
+  String? get _imageUrl => widget.tutorial?.steps[_step].mediaUrl;
+
   void _next() {
-    if (_step < _instructions.length - 1) {
+    if (_step < _stepCount - 1) {
       setState(() => _step++);
     } else {
       Navigator.pushReplacementNamed(context, AppRoutes.tutorialComplete);
@@ -45,7 +56,7 @@ class _StepByStepScreenState extends State<StepByStepScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final progress = (_step + 1) / _instructions.length;
+    final progress = (_step + 1) / _stepCount;
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
@@ -53,7 +64,7 @@ class _StepByStepScreenState extends State<StepByStepScreen> {
           icon: const Icon(Icons.arrow_back),
         ),
         title: Text(
-          'Step ${_step + 1} of ${_instructions.length}',
+          'Step ${_step + 1} of $_stepCount',
           style: const TextStyle(
             color: AppColors.mutedText,
             fontSize: 14,
@@ -109,9 +120,17 @@ class _StepByStepScreenState extends State<StepByStepScreen> {
                               borderRadius: BorderRadius.circular(22),
                             ),
                             padding: const EdgeInsets.all(34),
-                            child: CustomPaint(
-                              painter: _FoldDiagramPainter(step: _step),
-                            ),
+                            child: _imageUrl == null || _imageUrl!.isEmpty
+                                ? CustomPaint(
+                                    painter: _FoldDiagramPainter(step: _step),
+                                  )
+                                : AppNetworkImage(
+                                    url: _imageUrl!,
+                                    width: double.infinity,
+                                    height: double.infinity,
+                                    fit: BoxFit.contain,
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
                           ),
                         ),
                       ),
@@ -139,7 +158,7 @@ class _StepByStepScreenState extends State<StepByStepScreen> {
                             ),
                             const SizedBox(height: 7),
                             Text(
-                              _instructions[_step],
+                              _description,
                               style: const TextStyle(height: 1.5),
                             ),
                           ],

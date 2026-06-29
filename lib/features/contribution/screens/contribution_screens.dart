@@ -3,6 +3,9 @@ import 'package:image_picker/image_picker.dart';
 
 import 'package:origami/app/routes.dart';
 import 'package:origami/app/theme.dart';
+import 'package:origami/core/auth/auth_session.dart';
+import 'package:origami/core/library/library_api.dart';
+import 'package:origami/core/library/tutorial_models.dart';
 import 'package:origami/core/state/app_state.dart';
 import 'package:origami/core/widgets/common.dart';
 
@@ -402,7 +405,10 @@ class _CreateInstructionScreenState extends State<CreateInstructionScreen> {
   final List<XFile> _stepImages = [];
   final List<TextEditingController> _stepDescriptions = [];
   String _difficulty = 'Easy';
+  String _category = 'Animals';
   bool _picking = false;
+  bool _saving = false;
+  String? _savingLabel;
 
   @override
   void dispose() {
@@ -442,7 +448,8 @@ class _CreateInstructionScreenState extends State<CreateInstructionScreen> {
     });
   }
 
-  void _save({required bool draft}) {
+  Future<void> _save({required bool draft}) async {
+    if (_saving) return;
     final title = _titleController.text.trim();
     if (title.isEmpty) {
       showAppMessage(context, 'Please enter a tutorial title');
@@ -463,7 +470,7 @@ class _CreateInstructionScreenState extends State<CreateInstructionScreen> {
       return;
     }
 
-    final steps = <InstructionStepData>[
+    final localSteps = <InstructionStepData>[
       for (var index = 0; index < _stepImages.length; index++)
         InstructionStepData(
           image: _stepImages[index],
@@ -473,24 +480,81 @@ class _CreateInstructionScreenState extends State<CreateInstructionScreen> {
         ),
     ];
 
-    AppStateScope.of(context, listen: false).addInstruction(
-      InstructionSubmissionData(
-        id: 'instruction-${DateTime.now().microsecondsSinceEpoch}',
-        title: title,
-        resources: _resourcesController.text.trim(),
-        estimatedMinutes: duration ?? 0,
-        difficulty: _difficulty,
-        description: _descriptionController.text.trim(),
-        steps: steps,
-        status: draft ? SubmissionStatus.draft : SubmissionStatus.processing,
-        updatedLabel: draft ? 'Saved just now' : 'Sent just now',
-      ),
-    );
-    showAppMessage(
-      context,
-      draft ? 'Instruction saved as draft' : 'Instruction sent for review',
-    );
-    Navigator.pop(context);
+    setState(() {
+      _saving = true;
+      _savingLabel = _stepImages.isEmpty
+          ? 'Saving tutorial...'
+          : 'Uploading images...';
+    });
+    try {
+      final api = LibraryApi(AuthScope.of(context, listen: false).apiClient);
+      final uploadedUrls = <String>[];
+      for (var index = 0; index < _stepImages.length; index++) {
+        if (mounted) {
+          setState(() {
+            _savingLabel =
+                'Uploading image ${index + 1}/${_stepImages.length}...';
+          });
+        }
+        final uploaded = await api.uploadImage(_stepImages[index]);
+        uploadedUrls.add(uploaded.secureUrl);
+      }
+
+      if (mounted) setState(() => _savingLabel = 'Saving tutorial...');
+      final detail = await api.createTutorial(
+        CreateTutorialPayload(
+          title: title,
+          description: _descriptionController.text.trim(),
+          categorySlug: tutorialCategorySlug(_category),
+          difficulty: _difficulty,
+          estimatedMinutes: duration ?? 0,
+          thumbnailUrl: uploadedUrls.isEmpty ? '' : uploadedUrls.first,
+          draft: draft,
+          materials: _resourcesController.text
+              .split(RegExp(r'[,\n]'))
+              .map((item) => item.trim())
+              .where((item) => item.isNotEmpty)
+              .toList(growable: false),
+          steps: [
+            for (var index = 0; index < uploadedUrls.length; index++)
+              CreateTutorialStepPayload(
+                description: _stepDescriptions[index].text.trim().isEmpty
+                    ? 'Step ${index + 1}'
+                    : _stepDescriptions[index].text.trim(),
+                mediaUrl: uploadedUrls[index],
+              ),
+          ],
+        ),
+      );
+      if (!mounted) return;
+      AppStateScope.of(context, listen: false).addInstruction(
+        InstructionSubmissionData(
+          id: detail.summary.id,
+          title: title,
+          resources: _resourcesController.text.trim(),
+          estimatedMinutes: duration ?? 0,
+          difficulty: _difficulty,
+          description: _descriptionController.text.trim(),
+          steps: localSteps,
+          status: draft ? SubmissionStatus.draft : SubmissionStatus.processing,
+          updatedLabel: draft ? 'Saved just now' : 'Sent just now',
+        ),
+      );
+      showAppMessage(
+        context,
+        draft ? 'Instruction saved as draft' : 'Instruction sent for review',
+      );
+      Navigator.pop(context);
+    } on LibraryFailure catch (error) {
+      if (mounted) showAppMessage(context, error.message);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _saving = false;
+          _savingLabel = null;
+        });
+      }
+    }
   }
 
   @override
@@ -517,6 +581,18 @@ class _CreateInstructionScreenState extends State<CreateInstructionScreen> {
             hint: 'Paper size, tools, number of sheets...',
             maxLines: 3,
           ),
+          const Text('Category', style: TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          DropdownButtonFormField<String>(
+            initialValue: _category,
+            items: ['Animals', 'Birds', 'Flowers', 'Geometric', 'Modular']
+                .map((item) => DropdownMenuItem(value: item, child: Text(item)))
+                .toList(),
+            onChanged: _saving
+                ? null
+                : (value) => setState(() => _category = value ?? 'Animals'),
+          ),
+          const SizedBox(height: 18),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -583,9 +659,9 @@ class _CreateInstructionScreenState extends State<CreateInstructionScreen> {
           const SizedBox(height: 8),
           _UploadArea(
             title: 'Upload step photos',
-            subtitle: 'Select images in chronological order',
-            loading: _picking,
-            onTap: _pickSteps,
+            subtitle: _savingLabel ?? 'Select images in chronological order',
+            loading: _picking || _saving,
+            onTap: _saving ? () {} : _pickSteps,
           ),
           const SizedBox(height: 14),
           ...List.generate(
@@ -613,15 +689,15 @@ class _CreateInstructionScreenState extends State<CreateInstructionScreen> {
                 child: OutlineAppButton(
                   label: 'Save Draft',
                   icon: Icons.save_outlined,
-                  onPressed: () => _save(draft: true),
+                  onPressed: _saving ? null : () => _save(draft: true),
                 ),
               ),
               const SizedBox(width: 10),
               Expanded(
                 child: PrimaryButton(
-                  label: 'Send',
+                  label: _saving ? 'Working...' : 'Send',
                   icon: Icons.send_outlined,
-                  onPressed: () => _save(draft: false),
+                  onPressed: _saving ? null : () => _save(draft: false),
                 ),
               ),
             ],
