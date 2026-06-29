@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:origami/core/library/tutorial_models.dart';
 
 const artworkOne =
     'https://images.unsplash.com/photo-1616680214084-22670a2a9e34?w=900&h=900&fit=crop';
@@ -391,7 +392,7 @@ class AppState extends ChangeNotifier {
     ),
   ];
 
-  final List<TutorialData> tutorials = const [
+  final List<TutorialData> tutorials = [
     TutorialData(
       id: 'classic-crane',
       title: 'Classic Crane',
@@ -540,6 +541,24 @@ class AppState extends ChangeNotifier {
     if (!savedTutorialIds.add(tutorialId)) {
       savedTutorialIds.remove(tutorialId);
     }
+    notifyListeners();
+  }
+
+  void replaceLibraryTutorials(List<LibraryTutorial> values) {
+    tutorials
+      ..clear()
+      ..addAll(
+        values.map(
+          (value) => TutorialData(
+            id: value.id,
+            title: value.title,
+            image: value.thumbnailUrl,
+            difficulty: value.difficulty,
+            duration: value.duration,
+            rating: value.rating,
+          ),
+        ),
+      );
     notifyListeners();
   }
 

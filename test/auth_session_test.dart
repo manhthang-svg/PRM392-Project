@@ -118,10 +118,7 @@ class _FakeAuthGateway implements AuthGateway {
   }
 
   @override
-  Future<void> logout({
-    required String refreshToken,
-    String? accessToken,
-  }) async {
+  Future<void> logout({required String refreshToken}) async {
     logoutRefreshToken = refreshToken;
   }
 

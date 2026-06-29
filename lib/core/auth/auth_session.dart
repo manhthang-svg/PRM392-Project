@@ -115,10 +115,7 @@ class AuthSession extends ChangeNotifier {
       final tokens = await _tokenStorage.read();
       if (tokens != null) {
         try {
-          await _authGateway.logout(
-            refreshToken: tokens.refreshToken,
-            accessToken: tokens.accessToken,
-          );
+          await _authGateway.logout(refreshToken: tokens.refreshToken);
         } on Object {
           // Local logout must remain available when the API is unreachable.
         }

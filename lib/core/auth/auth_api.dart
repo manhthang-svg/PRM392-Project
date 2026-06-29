@@ -8,7 +8,7 @@ abstract interface class AuthGateway {
 
   Future<AuthTokens> refresh(String refreshToken);
 
-  Future<void> logout({required String refreshToken, String? accessToken});
+  Future<void> logout({required String refreshToken});
 
   Future<OtpChallenge> requestRegistrationOtp(String email);
 
@@ -57,19 +57,11 @@ class AuthApi implements AuthGateway {
   }
 
   @override
-  Future<void> logout({
-    required String refreshToken,
-    String? accessToken,
-  }) async {
+  Future<void> logout({required String refreshToken}) async {
     try {
       await _dio.post<void>(
         '/api/auth/logout',
         data: {'refreshToken': refreshToken},
-        options: Options(
-          headers: accessToken == null
-              ? null
-              : {'Authorization': 'Bearer $accessToken'},
-        ),
       );
     } on DioException catch (error) {
       throw AuthFailure.fromDio(error);

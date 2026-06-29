@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:origami/app/app_shell.dart';
 import 'package:origami/app/routes.dart';
 import 'package:origami/core/auth/auth_session.dart';
 import 'package:origami/core/auth/token_storage.dart';
+import 'package:origami/core/library/library_api.dart';
+import 'package:origami/core/library/tutorial_models.dart';
 import 'package:origami/core/state/app_state.dart';
 import 'package:origami/features/contribution/screens/contribution_screens.dart';
 import 'package:origami/features/newsfeed/screens/newsfeed_screen.dart';
@@ -20,6 +23,28 @@ Widget _testApp(Widget home) {
       ),
     ),
   );
+}
+
+class _FakeLibraryGateway implements LibraryGateway {
+  @override
+  Future<List<LibraryTutorial>> findTutorials({
+    String? query,
+    String? category,
+    String? difficulty,
+    int? minMinutes,
+    int? maxMinutes,
+  }) async => const [];
+
+  @override
+  Future<TutorialDetailModel> createTutorial(CreateTutorialPayload payload) =>
+      throw UnimplementedError();
+
+  @override
+  Future<TutorialDetailModel> findTutorial(String id) =>
+      throw UnimplementedError();
+
+  @override
+  Future<UploadedImage> uploadImage(XFile image) => throw UnimplementedError();
 }
 
 void main() {
@@ -80,7 +105,12 @@ void main() {
   testWidgets('Library filter opens category difficulty and duration popup', (
     tester,
   ) async {
-    await tester.pumpWidget(_testApp(const AppShell(initialIndex: 1)));
+    await tester.pumpWidget(
+      _testApp(
+        AppShell(initialIndex: 1, libraryGateway: _FakeLibraryGateway()),
+      ),
+    );
+    await tester.pump();
 
     await tester.tap(find.text('Filters'));
     await tester.pumpAndSettle();

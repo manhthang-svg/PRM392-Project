@@ -2,11 +2,17 @@ import 'package:flutter/material.dart';
 
 import 'package:origami/app/routes.dart';
 import 'package:origami/app/theme.dart';
+import 'package:origami/core/auth/auth_session.dart';
+import 'package:origami/core/library/library_api.dart';
+import 'package:origami/core/library/tutorial_models.dart';
 import 'package:origami/core/state/app_state.dart';
 import 'package:origami/core/widgets/common.dart';
 
 class LibraryTab extends StatefulWidget {
-  const LibraryTab({super.key});
+  const LibraryTab({super.key, this.gateway, this.active = true});
+
+  final LibraryGateway? gateway;
+  final bool active;
 
   @override
   State<LibraryTab> createState() => _LibraryTabState();
@@ -17,55 +23,55 @@ class _LibraryTabState extends State<LibraryTab> {
   String? _difficulty;
   String? _category;
   String? _duration;
+  LibraryGateway? _gateway;
+  List<LibraryTutorial> _allTutorials = const [];
+  bool _loading = true;
+  String? _error;
+  bool _initialized = false;
 
-  static const _tutorials = [
-    _Tutorial(
-      'classic-crane',
-      'Classic Crane',
-      artworkOne,
-      'Easy',
-      4.8,
-      '15 min',
-      'Birds',
-    ),
-    _Tutorial(
-      'lotus-flower',
-      'Lotus Flower',
-      artworkTwo,
-      'Medium',
-      4.9,
-      '25 min',
-      'Flowers',
-    ),
-    _Tutorial(
-      'geometric-star',
-      'Geometric Star',
-      artworkThree,
-      'Easy',
-      4.7,
-      '20 min',
-      'Geometric',
-    ),
-    _Tutorial(
-      'dragon',
-      'Dragon',
-      artworkFour,
-      'Hard',
-      4.9,
-      '45 min',
-      'Animals',
-    ),
-    _Tutorial('rose', 'Rose', artworkFive, 'Medium', 4.6, '30 min', 'Flowers'),
-    _Tutorial(
-      'kusudama-ball',
-      'Kusudama Ball',
-      artworkSix,
-      'Hard',
-      4.8,
-      '60 min',
-      'Modular',
-    ),
-  ];
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_initialized || !widget.active) return;
+    _initialize();
+  }
+
+  @override
+  void didUpdateWidget(covariant LibraryTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!oldWidget.active && widget.active && !_initialized) {
+      _initialize();
+    }
+  }
+
+  void _initialize() {
+    _initialized = true;
+    _gateway =
+        widget.gateway ??
+        LibraryApi(AuthScope.of(context, listen: false).apiClient);
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final tutorials = await _gateway!.findTutorials();
+      if (!mounted) return;
+      AppStateScope.of(
+        context,
+        listen: false,
+      ).replaceLibraryTutorials(tutorials);
+      setState(() => _allTutorials = tutorials);
+    } on LibraryFailure catch (error) {
+      if (!mounted) return;
+      setState(() => _error = error.message);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -76,7 +82,7 @@ class _LibraryTabState extends State<LibraryTab> {
   @override
   Widget build(BuildContext context) {
     final query = _searchController.text.trim().toLowerCase();
-    final tutorials = _tutorials.where((tutorial) {
+    final tutorials = _allTutorials.where((tutorial) {
       final matchesQuery =
           query.isEmpty ||
           tutorial.title.toLowerCase().contains(query) ||
@@ -87,7 +93,7 @@ class _LibraryTabState extends State<LibraryTab> {
           _category == null || tutorial.category == _category;
       final matchesDuration =
           _duration == null ||
-          _matchesDuration(tutorial.durationMinutes, _duration!);
+          _matchesDuration(tutorial.estimatedMinutes, _duration!);
       return matchesQuery &&
           matchesDifficulty &&
           matchesCategory &&
@@ -139,12 +145,27 @@ class _LibraryTabState extends State<LibraryTab> {
               child: Divider(),
             ),
           ),
-          if (tutorials.isEmpty)
+          if (_loading)
             const SliverFillRemaining(
               hasScrollBody: false,
               child: Center(
                 child: Text(
-                  'No tutorials match these filters.',
+                  'Loading tutorials...',
+                  style: TextStyle(color: AppColors.mutedText),
+                ),
+              ),
+            )
+          else if (_error != null)
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: _LibraryError(message: _error!, onRetry: _load),
+            )
+          else if (tutorials.isEmpty)
+            const SliverFillRemaining(
+              hasScrollBody: false,
+              child: Center(
+                child: Text(
+                  'No approved tutorials match these filters.',
                   style: TextStyle(color: AppColors.mutedText),
                 ),
               ),
@@ -199,27 +220,33 @@ class _LibraryTabState extends State<LibraryTab> {
   }
 }
 
-class _Tutorial {
-  const _Tutorial(
-    this.id,
-    this.title,
-    this.image,
-    this.difficulty,
-    this.rating,
-    this.duration,
-    this.category,
-  );
+class _LibraryError extends StatelessWidget {
+  const _LibraryError({required this.message, required this.onRetry});
 
-  final String id;
-  final String title;
-  final String image;
-  final String difficulty;
-  final double rating;
-  final String duration;
-  final String category;
+  final String message;
+  final VoidCallback onRetry;
 
-  int get durationMinutes {
-    return int.tryParse(duration.split(' ').first) ?? 0;
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.cloud_off_outlined, size: 38),
+            const SizedBox(height: 12),
+            Text(message, textAlign: TextAlign.center),
+            const SizedBox(height: 14),
+            OutlinedButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Retry'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -550,7 +577,7 @@ class _FilterSection extends StatelessWidget {
 class _TutorialCard extends StatelessWidget {
   const _TutorialCard({required this.tutorial});
 
-  final _Tutorial tutorial;
+  final LibraryTutorial tutorial;
 
   @override
   Widget build(BuildContext context) {
@@ -578,7 +605,7 @@ class _TutorialCard extends StatelessWidget {
           children: [
             Expanded(
               child: AppNetworkImage(
-                url: tutorial.image,
+                url: tutorial.thumbnailUrl,
                 width: double.infinity,
               ),
             ),

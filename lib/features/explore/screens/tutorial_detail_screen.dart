@@ -2,28 +2,85 @@ import 'package:flutter/material.dart';
 
 import 'package:origami/app/routes.dart';
 import 'package:origami/app/theme.dart';
+import 'package:origami/core/auth/auth_session.dart';
+import 'package:origami/core/library/library_api.dart';
+import 'package:origami/core/library/tutorial_models.dart';
 import 'package:origami/core/state/app_state.dart';
 import 'package:origami/core/widgets/common.dart';
 
 class TutorialDetailScreen extends StatefulWidget {
-  const TutorialDetailScreen({super.key, this.tutorialId = 'classic-crane'});
+  const TutorialDetailScreen({super.key, this.tutorialId = '0', this.gateway});
 
   final String tutorialId;
+  final LibraryGateway? gateway;
 
   @override
   State<TutorialDetailScreen> createState() => _TutorialDetailScreenState();
 }
 
 class _TutorialDetailScreenState extends State<TutorialDetailScreen> {
+  Future<TutorialDetailModel>? _tutorial;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _tutorial ??=
+        (widget.gateway ??
+                LibraryApi(AuthScope.of(context, listen: false).apiClient))
+            .findTutorial(widget.tutorialId);
+  }
+
+  void _retry() {
+    setState(() {
+      _tutorial =
+          (widget.gateway ??
+                  LibraryApi(AuthScope.of(context, listen: false).apiClient))
+              .findTutorial(widget.tutorialId);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    final state = AppStateScope.of(context);
-    final tutorial = state.tutorials.firstWhere(
-      (item) => item.id == widget.tutorialId,
-      orElse: () => state.tutorials.first,
+    return FutureBuilder<TutorialDetailModel>(
+      future: _tutorial,
+      builder: (context, snapshot) {
+        if (snapshot.hasData) return _buildDetail(snapshot.data!);
+        if (snapshot.hasError) {
+          return Scaffold(
+            appBar: AppBar(),
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(28),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.cloud_off_outlined, size: 42),
+                    const SizedBox(height: 12),
+                    Text(
+                      snapshot.error.toString(),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 14),
+                    OutlinedButton.icon(
+                      onPressed: _retry,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
+        return const Scaffold(body: Center(child: Text('Loading tutorial...')));
+      },
     );
-    final saved = state.savedTutorialIds.contains(tutorial.id);
+  }
 
+  Widget _buildDetail(TutorialDetailModel detail) {
+    final tutorial = detail.summary;
+    final state = AppStateScope.of(context);
+    final saved = state.savedTutorialIds.contains(tutorial.id);
     return Scaffold(
       body: CustomScrollView(
         slivers: [
@@ -52,9 +109,10 @@ class _TutorialDetailScreenState extends State<TutorialDetailScreen> {
             ],
             flexibleSpace: FlexibleSpaceBar(
               background: AppNetworkImage(
-                url: tutorial.image,
+                url: tutorial.thumbnailUrl,
                 width: double.infinity,
                 height: 320,
+                fit: BoxFit.contain,
               ),
             ),
           ),
@@ -73,9 +131,9 @@ class _TutorialDetailScreenState extends State<TutorialDetailScreen> {
                         children: [
                           AppPageTitle(tutorial.title, size: 27),
                           const SizedBox(height: 5),
-                          const Text(
-                            'by Sarah Chen',
-                            style: TextStyle(
+                          Text(
+                            'by ${tutorial.creatorName}',
+                            style: const TextStyle(
                               color: AppColors.primaryDark,
                               fontWeight: FontWeight.w600,
                             ),
@@ -92,22 +150,27 @@ class _TutorialDetailScreenState extends State<TutorialDetailScreen> {
                   children: [
                     _Metadata(
                       icon: Icons.star,
-                      label: '${tutorial.rating}',
+                      label: tutorial.rating.toStringAsFixed(1),
                       star: true,
                     ),
                     _Metadata(icon: Icons.schedule, label: tutorial.duration),
-                    const _Metadata(
-                      icon: Icons.people_outline,
-                      label: '12.5K completed',
+                    _Metadata(
+                      icon: Icons.format_list_numbered,
+                      label: '${detail.steps.length} steps',
                     ),
                   ],
                 ),
                 const SizedBox(height: 28),
                 Text('Description', style: serifTitle(20)),
                 const SizedBox(height: 8),
-                const Text(
-                  'Learn to fold a beautiful traditional crane, one of the most iconic origami designs. This elegant bird symbolizes peace and good fortune. Perfect for beginners looking to master fundamental folding techniques.',
-                  style: TextStyle(color: AppColors.mutedText, height: 1.55),
+                Text(
+                  tutorial.description.isEmpty
+                      ? 'No description has been added.'
+                      : tutorial.description,
+                  style: const TextStyle(
+                    color: AppColors.mutedText,
+                    height: 1.55,
+                  ),
                 ),
                 const SizedBox(height: 24),
                 Row(
@@ -116,50 +179,39 @@ class _TutorialDetailScreenState extends State<TutorialDetailScreen> {
                       child: _InfoTile('Difficulty', tutorial.difficulty),
                     ),
                     const SizedBox(width: 12),
-                    const Expanded(
-                      child: _InfoTile('Paper Size', '15cm x 15cm'),
-                    ),
+                    Expanded(child: _InfoTile('Category', tutorial.category)),
                   ],
                 ),
                 const SizedBox(height: 12),
-                const Row(
+                Row(
                   children: [
-                    Expanded(child: _InfoTile('Steps', '12 steps')),
-                    SizedBox(width: 12),
-                    Expanded(child: _InfoTile('Materials', 'Square paper')),
+                    Expanded(
+                      child: _InfoTile('Steps', '${detail.steps.length} steps'),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _InfoTile(
+                        'Materials',
+                        detail.materials.isEmpty
+                            ? 'Not specified'
+                            : detail.materials.join(', '),
+                      ),
+                    ),
                   ],
                 ),
-                const SizedBox(height: 25),
-                Text("What You'll Learn", style: serifTitle(20)),
-                const SizedBox(height: 11),
-                for (final item in const [
-                  'Basic valley and mountain folds',
-                  'Inside reverse fold technique',
-                  'Symmetrical folding',
-                  'Creating 3D form from flat paper',
-                ])
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 9),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Padding(
-                          padding: EdgeInsets.only(top: 7),
-                          child: CircleAvatar(
-                            radius: 3,
-                            backgroundColor: AppColors.primaryDark,
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            item,
-                            style: const TextStyle(color: AppColors.mutedText),
-                          ),
-                        ),
-                      ],
+                if (detail.steps.isNotEmpty) ...[
+                  const SizedBox(height: 25),
+                  Text('Step preview', style: serifTitle(20)),
+                  const SizedBox(height: 11),
+                  for (final step in detail.steps.take(3))
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 9),
+                      child: Text(
+                        '${step.stepNumber}. ${step.description}',
+                        style: const TextStyle(color: AppColors.mutedText),
+                      ),
                     ),
-                  ),
+                ],
               ],
             ),
           ),
@@ -175,8 +227,13 @@ class _TutorialDetailScreenState extends State<TutorialDetailScreen> {
           ),
           child: PrimaryButton(
             label: 'Start Folding',
-            onPressed: () =>
-                Navigator.pushNamed(context, AppRoutes.tutorialSteps),
+            onPressed: detail.steps.isEmpty
+                ? null
+                : () => Navigator.pushNamed(
+                    context,
+                    AppRoutes.tutorialSteps,
+                    arguments: detail,
+                  ),
           ),
         ),
       ),
@@ -265,7 +322,7 @@ class _InfoTile extends StatelessWidget {
             style: const TextStyle(color: AppColors.mutedText, fontSize: 12),
           ),
           const SizedBox(height: 4),
-          Text(value, maxLines: 1, overflow: TextOverflow.ellipsis),
+          Text(value, maxLines: 2, overflow: TextOverflow.ellipsis),
         ],
       ),
     );
