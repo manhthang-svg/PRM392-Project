@@ -9,8 +9,59 @@ import 'package:origami/core/library/tutorial_models.dart';
 import 'package:origami/core/state/app_state.dart';
 import 'package:origami/core/widgets/common.dart';
 
-class CreatorHubTab extends StatelessWidget {
+class CreatorHubTab extends StatefulWidget {
   const CreatorHubTab({super.key});
+
+  @override
+  State<CreatorHubTab> createState() => _CreatorHubTabState();
+}
+
+class _CreatorHubTabState extends State<CreatorHubTab> {
+  LibraryGateway? _gateway;
+  bool _syncedTutorials = false;
+  bool _syncingTutorials = false;
+  String? _syncError;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _gateway ??= LibraryApi(AuthScope.of(context, listen: false).apiClient);
+    if (!_syncedTutorials) {
+      _syncedTutorials = true;
+      _loadTutorialSubmissions();
+    }
+  }
+
+  Future<void> _loadTutorialSubmissions() async {
+    setState(() {
+      _syncingTutorials = true;
+      _syncError = null;
+    });
+    try {
+      final tutorials = await _gateway!.findMyTutorials();
+      if (!mounted) return;
+      AppStateScope.of(
+        context,
+        listen: false,
+      ).replaceInstructionSubmissionsFromTutorials(tutorials);
+    } on LibraryFailure catch (error) {
+      if (!mounted) return;
+      setState(() => _syncError = error.message);
+    } finally {
+      if (mounted) setState(() => _syncingTutorials = false);
+    }
+  }
+
+  String _submissionSubtitle(InstructionSubmissionData submission) {
+    if (submission.status == SubmissionStatus.approved) {
+      return 'Instruction · ${submission.updatedLabel} · ${submission.reactions} reacts';
+    }
+    if (submission.status == SubmissionStatus.rejected &&
+        submission.reviewNote.isNotEmpty) {
+      return 'Rejected: ${submission.reviewNote}';
+    }
+    return 'Instruction · ${submission.updatedLabel}';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -61,6 +112,41 @@ class CreatorHubTab extends StatelessWidget {
               ),
             ],
           ),
+          if (_syncingTutorials || _syncError != null) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                if (_syncingTutorials) ...[
+                  const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Đang cập nhật trạng thái tutorial...',
+                    style: TextStyle(color: AppColors.mutedText, fontSize: 12),
+                  ),
+                ] else ...[
+                  const Icon(
+                    Icons.info_outline,
+                    size: 15,
+                    color: AppColors.mutedText,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      _syncError!,
+                      style: const TextStyle(
+                        color: AppColors.mutedText,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ],
           const SizedBox(height: 13),
           ...ownPosts.map(
             (post) => _ActivityTile(
@@ -80,9 +166,7 @@ class CreatorHubTab extends StatelessWidget {
             (submission) => _ActivityTile(
               icon: Icons.description_outlined,
               title: submission.title,
-              subtitle: submission.status == SubmissionStatus.approved
-                  ? 'Instruction · ${submission.updatedLabel} · ${submission.reactions} reacts'
-                  : 'Instruction · ${submission.updatedLabel}',
+              subtitle: _submissionSubtitle(submission),
               badge: submission.status.label,
               badgeColors: _statusColors(submission.status.label),
               onTap: () => Navigator.pushNamed(
@@ -1005,6 +1089,35 @@ class _InstructionSubmissionDetailScreenState
             item.updatedLabel,
             style: const TextStyle(color: AppColors.mutedText, fontSize: 12),
           ),
+          if (item.status == SubmissionStatus.rejected &&
+              item.reviewNote.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFDE0E0),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFF3B6B6)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(
+                    Icons.report_problem_outlined,
+                    color: Color(0xFFB64A4A),
+                    size: 20,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Lý do bị từ chối: ${item.reviewNote}',
+                      style: const TextStyle(color: Color(0xFF7F3333)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 22),
           _DetailInfo(
             icon: Icons.inventory_2_outlined,

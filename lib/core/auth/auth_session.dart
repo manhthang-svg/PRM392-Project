@@ -26,11 +26,13 @@ class AuthSession extends ChangeNotifier {
 
   Future<void>? _initialization;
   bool _isAuthenticated = false;
+  bool _isAdmin = false;
   bool _isBusy = false;
   bool _requiresLogin = false;
   String? _errorMessage;
 
   bool get isAuthenticated => _isAuthenticated;
+  bool get isAdmin => _isAdmin;
   bool get isBusy => _isBusy;
   bool get requiresLogin => _requiresLogin;
   String? get errorMessage => _errorMessage;
@@ -125,6 +127,7 @@ class AuthSession extends ChangeNotifier {
     } finally {
       await _safeClear();
       _isAuthenticated = false;
+      _isAdmin = false;
       _requiresLogin = false;
       _apiClient.setAccessToken(null);
       _setBusy(false);
@@ -147,6 +150,7 @@ class AuthSession extends ChangeNotifier {
     } on Object {
       await _safeClear();
       _isAuthenticated = false;
+      _isAdmin = false;
       _apiClient.setAccessToken(null);
     } finally {
       notifyListeners();
@@ -156,6 +160,7 @@ class AuthSession extends ChangeNotifier {
   void _applyTokens(AuthTokens tokens) {
     _apiClient.setAccessToken(tokens.accessToken);
     _isAuthenticated = true;
+    _isAdmin = tokens.isAdmin;
     _requiresLogin = false;
     _errorMessage = null;
     notifyListeners();
@@ -163,6 +168,7 @@ class AuthSession extends ChangeNotifier {
 
   void _handleTokensRefreshed(AuthTokens tokens) {
     _isAuthenticated = true;
+    _isAdmin = tokens.isAdmin;
     _requiresLogin = false;
     _errorMessage = null;
     notifyListeners();
@@ -170,6 +176,7 @@ class AuthSession extends ChangeNotifier {
 
   void _handleSessionExpired() {
     _isAuthenticated = false;
+    _isAdmin = false;
     _requiresLogin = true;
     _errorMessage = 'Your session has expired. Please log in again.';
     notifyListeners();

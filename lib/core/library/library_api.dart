@@ -14,6 +14,8 @@ abstract interface class LibraryGateway {
 
   Future<TutorialDetailModel> findTutorial(String id);
 
+  Future<List<TutorialDetailModel>> findMyTutorials();
+
   Future<UploadedImage> uploadImage(XFile image);
 
   Future<TutorialDetailModel> createTutorial(CreateTutorialPayload payload);
@@ -74,6 +76,30 @@ class LibraryApi implements LibraryGateway {
         throw const FormatException('Invalid tutorial response');
       }
       return TutorialDetailModel.fromJson(Map<String, dynamic>.from(data));
+    } on DioException catch (error) {
+      throw LibraryFailure.fromDio(error);
+    } on FormatException catch (error) {
+      throw LibraryFailure(error.message);
+    }
+  }
+
+  @override
+  Future<List<TutorialDetailModel>> findMyTutorials() async {
+    try {
+      final response = await _client.dio.get<Map<String, dynamic>>(
+        '/api/tutorials/mine',
+      );
+      final data = _envelopeData(response.data);
+      if (data is! List) {
+        throw const FormatException('Invalid tutorial submissions response');
+      }
+      return data
+          .whereType<Map>()
+          .map(
+            (value) =>
+                TutorialDetailModel.fromJson(Map<String, dynamic>.from(value)),
+          )
+          .toList(growable: false);
     } on DioException catch (error) {
       throw LibraryFailure.fromDio(error);
     } on FormatException catch (error) {

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:origami/app/app_shell.dart';
 import 'package:origami/core/library/tutorial_models.dart';
+import 'package:origami/features/admin/screens/admin_shell.dart';
+import 'package:origami/features/admin/screens/admin_post_review_screen.dart';
 import 'package:origami/features/auth/screens/login_screen.dart';
 import 'package:origami/features/auth/screens/signup_screen.dart';
 import 'package:origami/features/auth/screens/splash_screen.dart';
@@ -35,6 +37,10 @@ abstract final class AppRoutes {
   static const createInstruction = '/create/instruction';
   static const instructionSubmissionDetail = '/create/instruction/detail';
   static const postActivityDetail = '/create/post/detail';
+  static const adminPostReview = '/admin/posts';
+  static const adminHome = '/admin';
+  static const adminUsers = '/admin/users';
+  static const adminTutorials = '/admin/tutorials';
 }
 
 abstract final class AppRouter {
@@ -81,6 +87,10 @@ abstract final class AppRouter {
       AppRoutes.postActivityDetail => PostActivityDetailScreen(
         postId: stringArgument ?? 'post-1',
       ),
+      AppRoutes.adminPostReview => const AdminPostReviewScreen(),
+      AppRoutes.adminHome => const AdminShell(),
+      AppRoutes.adminUsers => const AdminUsersScreen(),
+      AppRoutes.adminTutorials => const AdminTutorialsScreen(),
       _ => const SplashScreen(),
     };
 

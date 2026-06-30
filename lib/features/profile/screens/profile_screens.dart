@@ -4,14 +4,48 @@ import 'package:image_picker/image_picker.dart';
 import 'package:origami/app/routes.dart';
 import 'package:origami/app/theme.dart';
 import 'package:origami/core/auth/auth_session.dart';
+import 'package:origami/core/profile/profile_api.dart';
 import 'package:origami/core/state/app_state.dart';
 import 'package:origami/core/widgets/common.dart';
 
-class ProfileHomeTab extends StatelessWidget {
+class ProfileHomeTab extends StatefulWidget {
   const ProfileHomeTab({super.key});
 
   @override
+  State<ProfileHomeTab> createState() => _ProfileHomeTabState();
+}
+
+class _ProfileHomeTabState extends State<ProfileHomeTab> {
+  ProfileApi? _api;
+  bool _loaded = false;
+  bool _loading = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _api ??= ProfileApi(AuthScope.of(context, listen: false).apiClient);
+    if (!_loaded) {
+      _loaded = true;
+      _loadProfile();
+    }
+  }
+
+  Future<void> _loadProfile() async {
+    setState(() => _loading = true);
+    try {
+      final profile = await _api!.me();
+      if (!mounted) return;
+      AppStateScope.of(context, listen: false).applyCurrentUserProfile(profile);
+    } on ProfileFailure catch (error) {
+      if (mounted) showAppMessage(context, error.message);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final auth = AuthScope.of(context);
     final state = AppStateScope.of(context);
     final user = state.currentUser;
 
@@ -24,6 +58,12 @@ class ProfileHomeTab extends StatelessWidget {
           Row(
             children: [
               const Expanded(child: AppPageTitle('Profile', size: 25)),
+              if (_loading)
+                const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
             ],
           ),
           const SizedBox(height: 14),
@@ -81,6 +121,16 @@ class ProfileHomeTab extends StatelessWidget {
             onTap: () => Navigator.pushNamed(context, AppRoutes.savedTutorials),
           ),
           const SizedBox(height: 10),
+          if (auth.isAdmin) ...[
+            _ProfileMenuItem(
+              icon: Icons.admin_panel_settings_outlined,
+              label: 'Admin Post Review',
+              subtitle: 'Approve or reject community posts',
+              onTap: () =>
+                  Navigator.pushNamed(context, AppRoutes.adminPostReview),
+            ),
+            const SizedBox(height: 10),
+          ],
           _ProfileMenuItem(
             icon: Icons.logout,
             label: 'Log Out',
@@ -102,7 +152,16 @@ class _CurrentUserAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (state.currentAvatar == null) return UserAvatar(size: size);
+    if (state.currentAvatar == null) {
+      final avatarUrl = state.currentUser.avatarUrl;
+      if (avatarUrl.isEmpty) return UserAvatar(size: size);
+      return AppNetworkImage(
+        url: avatarUrl,
+        width: size,
+        height: size,
+        borderRadius: BorderRadius.circular(size / 2),
+      );
+    }
     return SizedBox.square(
       dimension: size,
       child: ClipOval(child: PickedImageView(file: state.currentAvatar!)),
@@ -243,19 +302,24 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late final TextEditingController _nameController;
   late final TextEditingController _handleController;
   late final TextEditingController _bioController;
+  late final ProfileApi _api;
   bool _initialized = false;
+  bool _saving = false;
   XFile? _avatar;
+  String _avatarUrl = '';
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (_initialized) return;
     _initialized = true;
+    _api = ProfileApi(AuthScope.of(context, listen: false).apiClient);
     final state = AppStateScope.of(context, listen: false);
     _nameController = TextEditingController(text: state.currentUser.name);
     _handleController = TextEditingController(text: state.currentUser.handle);
     _bioController = TextEditingController(text: state.currentUser.bio);
     _avatar = state.currentAvatar;
+    _avatarUrl = state.currentUser.avatarUrl;
   }
 
   @override
@@ -278,21 +342,37 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     }
   }
 
-  void _save() {
+  Future<void> _save() async {
+    if (_saving) return;
     var handle = _handleController.text.trim();
     if (_nameController.text.trim().isEmpty || handle.isEmpty) {
       showAppMessage(context, 'Name and username are required');
       return;
     }
     if (!handle.startsWith('@')) handle = '@$handle';
-    AppStateScope.of(context, listen: false).updateProfile(
-      name: _nameController.text.trim(),
-      handle: handle,
-      bio: _bioController.text.trim(),
-      avatar: _avatar,
-    );
-    showAppMessage(context, 'Profile updated');
-    Navigator.pop(context);
+
+    setState(() => _saving = true);
+    try {
+      var avatarUrl = _avatarUrl;
+      if (_avatar != null) {
+        final uploaded = await _api.uploadAvatar(_avatar!);
+        avatarUrl = uploaded.secureUrl;
+      }
+      final profile = await _api.update(
+        displayName: _nameController.text.trim(),
+        handle: handle,
+        bio: _bioController.text.trim(),
+        avatarUrl: avatarUrl,
+      );
+      if (!mounted) return;
+      AppStateScope.of(context, listen: false).applyCurrentUserProfile(profile);
+      showAppMessage(context, 'Profile updated');
+      Navigator.pop(context);
+    } on ProfileFailure catch (error) {
+      if (mounted) showAppMessage(context, error.message);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   @override
@@ -314,7 +394,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 SizedBox.square(
                   dimension: 104,
                   child: _avatar == null
-                      ? const UserAvatar(size: 104)
+                      ? _avatarUrl.isEmpty
+                            ? const UserAvatar(size: 104)
+                            : AppNetworkImage(
+                                url: _avatarUrl,
+                                width: 104,
+                                height: 104,
+                                borderRadius: BorderRadius.circular(52),
+                              )
                       : ClipOval(child: PickedImageView(file: _avatar!)),
                 ),
                 Positioned(
@@ -357,8 +444,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           padding: const EdgeInsets.fromLTRB(20, 10, 20, 14),
           child: PrimaryButton(
             label: 'Save Changes',
-            icon: Icons.check,
-            onPressed: _save,
+            icon: _saving ? null : Icons.check,
+            onPressed: _saving ? null : _save,
           ),
         ),
       ),

@@ -48,4 +48,28 @@ class AuthTokens {
       return true;
     }
   }
+
+  List<String> get authorities {
+    try {
+      final payload = _payload;
+      final value = payload['authorities'];
+      if (value is List) {
+        return value.whereType<String>().toList(growable: false);
+      }
+      return const [];
+    } on Object {
+      return const [];
+    }
+  }
+
+  bool get isAdmin => authorities.contains('ADMIN');
+
+  Map<String, dynamic> get _payload {
+    final parts = accessToken.split('.');
+    if (parts.length != 3) return const {};
+    final decoded = jsonDecode(
+      utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))),
+    );
+    return decoded is Map<String, dynamic> ? decoded : const {};
+  }
 }
