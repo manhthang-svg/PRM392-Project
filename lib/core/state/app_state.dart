@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:origami/core/library/tutorial_models.dart';
+import 'package:origami/core/profile/profile_api.dart';
 
 const artworkOne =
     'https://images.unsplash.com/photo-1616680214084-22670a2a9e34?w=900&h=900&fit=crop';
@@ -26,6 +27,15 @@ extension SubmissionStatusLabel on SubmissionStatus {
   };
 }
 
+SubmissionStatus _submissionStatusFromServer(String status) {
+  return switch (status.toUpperCase()) {
+    'DRAFT' => SubmissionStatus.draft,
+    'APPROVED' => SubmissionStatus.approved,
+    'REJECTED' => SubmissionStatus.rejected,
+    _ => SubmissionStatus.processing,
+  };
+}
+
 class UserProfileData {
   const UserProfileData({
     required this.id,
@@ -34,6 +44,7 @@ class UserProfileData {
     required this.bio,
     required this.followers,
     required this.following,
+    this.avatarUrl = '',
     this.isFollowing = false,
     bool? isFollower,
     this.online = false,
@@ -46,6 +57,7 @@ class UserProfileData {
   final String bio;
   final int followers;
   final int following;
+  final String avatarUrl;
   final bool isFollowing;
   final bool? _isFollower;
   final bool online;
@@ -61,6 +73,7 @@ class UserProfileData {
     String? bio,
     int? followers,
     int? following,
+    String? avatarUrl,
     bool? isFollowing,
     bool? isFollower,
     bool? online,
@@ -73,6 +86,7 @@ class UserProfileData {
       bio: bio ?? this.bio,
       followers: followers ?? this.followers,
       following: following ?? this.following,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
       isFollowing: isFollowing ?? this.isFollowing,
       isFollower: isFollower ?? this.isFollower,
       online: online ?? this.online,
@@ -146,6 +160,7 @@ class InstructionSubmissionData {
     required this.steps,
     required this.status,
     required this.updatedLabel,
+    this.reviewNote = '',
     this.reactions = 0,
     List<String> comments = const [],
   }) : comments = List.of(comments);
@@ -159,6 +174,7 @@ class InstructionSubmissionData {
   final List<InstructionStepData> steps;
   SubmissionStatus status;
   final String updatedLabel;
+  final String reviewNote;
   int reactions;
   final List<String> comments;
 }
@@ -509,16 +525,63 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  void replaceInstructionSubmissionsFromTutorials(
+    List<TutorialDetailModel> values,
+  ) {
+    submissions
+      ..clear()
+      ..addAll(
+        values.map(
+          (value) => InstructionSubmissionData(
+            id: value.summary.id,
+            title: value.summary.title,
+            resources: value.materials.join(', '),
+            estimatedMinutes: value.summary.estimatedMinutes,
+            difficulty: value.summary.difficulty,
+            description: value.summary.description,
+            steps: const [],
+            status: _submissionStatusFromServer(value.status),
+            updatedLabel: 'Synced from server',
+            reviewNote: value.rejectionReason,
+          ),
+        ),
+      );
+    notifyListeners();
+  }
+
   void updateProfile({
     required String name,
     required String handle,
     required String bio,
     XFile? avatar,
+    String? avatarUrl,
   }) {
-    currentUser = currentUser.copyWith(name: name, handle: handle, bio: bio);
+    currentUser = currentUser.copyWith(
+      name: name,
+      handle: handle,
+      bio: bio,
+      avatarUrl: avatarUrl,
+    );
     if (avatar != null) currentAvatar = avatar;
+    if (avatarUrl != null && avatarUrl.isNotEmpty) currentAvatar = null;
     for (final post in posts.where((post) => post.authorId == currentUser.id)) {
       post.authorName = name;
+    }
+    notifyListeners();
+  }
+
+  void applyCurrentUserProfile(UserProfileDto profile) {
+    currentUser = currentUser.copyWith(
+      name: profile.displayName.isEmpty
+          ? profile.username
+          : profile.displayName,
+      handle: profile.handle,
+      bio: profile.bio,
+      avatarUrl: profile.avatarUrl,
+    );
+    if (profile.avatarUrl.isNotEmpty) currentAvatar = null;
+    for (final post in posts.where((post) => post.authorId == currentUser.id)) {
+      post.authorName = currentUser.name;
     }
     notifyListeners();
   }

@@ -25,6 +25,29 @@ void main() {
       expect(gateway.loginEmail, 'paper@example.com');
     });
 
+    test(
+      'marks session as admin when the access token has ADMIN authority',
+      () async {
+        final storage = MemoryTokenStorage();
+        final gateway = _FakeAuthGateway(
+          loginAuthorities: const ['ADMIN', 'USER_READ'],
+        );
+        final session = AuthSession(
+          tokenStorage: storage,
+          authGateway: gateway,
+        );
+
+        final result = await session.login(
+          email: 'admin@example.com',
+          password: 'password123',
+        );
+
+        expect(result, isTrue);
+        expect(session.isAuthenticated, isTrue);
+        expect(session.isAdmin, isTrue);
+      },
+    );
+
     test('refreshes an expired access token during startup', () async {
       final storage = MemoryTokenStorage()
         ..tokens = AuthTokens(
@@ -89,6 +112,9 @@ void main() {
 }
 
 class _FakeAuthGateway implements AuthGateway {
+  _FakeAuthGateway({this.loginAuthorities = const []});
+
+  final List<String> loginAuthorities;
   String? loginEmail;
   String? lastRefreshToken;
   String? logoutRefreshToken;
@@ -102,7 +128,10 @@ class _FakeAuthGateway implements AuthGateway {
   }) async {
     loginEmail = email;
     return AuthTokens(
-      accessToken: _jwt(expirationOffset: const Duration(minutes: 15)),
+      accessToken: _jwt(
+        expirationOffset: const Duration(minutes: 15),
+        authorities: loginAuthorities,
+      ),
       refreshToken: 'login-refresh',
     );
   }
@@ -136,9 +165,12 @@ class _FakeAuthGateway implements AuthGateway {
   }
 }
 
-String _jwt({required Duration expirationOffset}) {
+String _jwt({
+  required Duration expirationOffset,
+  List<String> authorities = const [],
+}) {
   String encode(Object value) =>
       base64Url.encode(utf8.encode(jsonEncode(value))).replaceAll('=', '');
   final expiresAt = DateTime.now().add(expirationOffset);
-  return '${encode({'alg': 'HS256'})}.${encode({'exp': expiresAt.millisecondsSinceEpoch ~/ 1000})}.signature';
+  return '${encode({'alg': 'HS256'})}.${encode({'exp': expiresAt.millisecondsSinceEpoch ~/ 1000, if (authorities.isNotEmpty) 'authorities': authorities})}.signature';
 }

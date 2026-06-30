@@ -71,6 +71,7 @@ class TutorialDetailModel {
   const TutorialDetailModel({
     required this.summary,
     required this.status,
+    required this.rejectionReason,
     required this.materials,
     required this.steps,
   });
@@ -84,6 +85,7 @@ class TutorialDetailModel {
         'stepCount': steps is List ? steps.length : 0,
       }),
       status: json['status'] as String? ?? '',
+      rejectionReason: json['rejectionReason'] as String? ?? '',
       materials: materials is List
           ? materials.whereType<String>().toList(growable: false)
           : const [],
@@ -102,6 +104,7 @@ class TutorialDetailModel {
 
   final LibraryTutorial summary;
   final String status;
+  final String rejectionReason;
   final List<String> materials;
   final List<TutorialStepModel> steps;
 }

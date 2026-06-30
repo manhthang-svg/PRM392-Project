@@ -39,7 +39,9 @@ class _SplashScreenState extends State<SplashScreen>
     ]);
     if (!mounted) return;
     Navigator.of(context).pushReplacementNamed(
-      session.isAuthenticated ? AppRoutes.newsfeed : AppRoutes.login,
+      session.isAuthenticated
+          ? (session.isAdmin ? AppRoutes.adminHome : AppRoutes.newsfeed)
+          : AppRoutes.login,
     );
   }
 

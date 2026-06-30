@@ -34,15 +34,55 @@ class _LoginScreenState extends State<LoginScreen> {
     );
     if (!mounted) return;
     if (succeeded) {
-      Navigator.of(
-        context,
-      ).pushNamedAndRemoveUntil(AppRoutes.newsfeed, (route) => false);
+      Navigator.of(context).pushNamedAndRemoveUntil(
+        session.isAdmin ? AppRoutes.adminHome : AppRoutes.newsfeed,
+        (route) => false,
+      );
       return;
     }
     showAppMessage(
       context,
       session.errorMessage ?? 'Could not log in. Please try again.',
     );
+  }
+
+  Future<void> _showDemoAccounts() async {
+    final selected = await showModalBottomSheet<_DemoAccount>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 4, 18, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Choose demo account', style: serifTitle(22)),
+              const SizedBox(height: 10),
+              _DemoAccountTile(
+                icon: Icons.person_outline,
+                title: 'Demo User',
+                subtitle: _DemoAccount.user.email,
+                onTap: () => Navigator.pop(context, _DemoAccount.user),
+              ),
+              const SizedBox(height: 8),
+              _DemoAccountTile(
+                icon: Icons.admin_panel_settings_outlined,
+                title: 'Demo Admin',
+                subtitle: _DemoAccount.admin.email,
+                onTap: () => Navigator.pop(context, _DemoAccount.admin),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (selected == null || !mounted) return;
+    setState(() {
+      _emailController.text = selected.email;
+      _passwordController.text = selected.password;
+    });
+    showAppMessage(context, '${selected.label} filled');
   }
 
   @override
@@ -152,6 +192,23 @@ class _LoginScreenState extends State<LoginScreen> {
                       label: session.isBusy ? 'Logging in...' : 'Log In',
                       onPressed: session.isBusy ? null : _login,
                     ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: session.isBusy ? null : _showDemoAccounts,
+                        icon: const Icon(Icons.auto_fix_high_outlined),
+                        label: const Text('Demo account'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.primaryDark,
+                          minimumSize: const Size.fromHeight(50),
+                          side: const BorderSide(color: AppColors.border),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                      ),
+                    ),
                     const SizedBox(height: 28),
                     const _AuthDivider(),
                     const SizedBox(height: 22),
@@ -197,6 +254,61 @@ class _LoginScreenState extends State<LoginScreen> {
       minimumSize: const Size(0, 50),
       side: const BorderSide(color: AppColors.border),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+    );
+  }
+}
+
+enum _DemoAccount {
+  user(
+    label: 'Demo User',
+    email: 'ieltshaha123@gmail.com',
+    password: '032five794127',
+  ),
+  admin(
+    label: 'Demo Admin',
+    email: 'admin123@gmail.com',
+    password: '032five794127',
+  );
+
+  const _DemoAccount({
+    required this.label,
+    required this.email,
+    required this.password,
+  });
+
+  final String label;
+  final String email;
+  final String password;
+}
+
+class _DemoAccountTile extends StatelessWidget {
+  const _DemoAccountTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: const BorderSide(color: AppColors.border),
+      ),
+      child: ListTile(
+        onTap: onTap,
+        leading: Icon(icon, color: AppColors.primaryDark),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+        subtitle: Text(subtitle),
+        trailing: const Icon(Icons.chevron_right),
+      ),
     );
   }
 }
