@@ -1,9 +1,12 @@
 import 'dart:math' as math;
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 
 import 'package:origami/app/routes.dart';
 import 'package:origami/app/theme.dart';
+import 'package:origami/core/auth/auth_session.dart';
+import 'package:origami/core/library/tutorial_comments_api.dart';
 import 'package:origami/core/library/tutorial_models.dart';
 import 'package:origami/core/widgets/common.dart';
 
@@ -202,10 +205,8 @@ class _StepByStepScreenState extends State<StepByStepScreen> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: PrimaryButton(
-                      label: _step == _instructions.length - 1
-                          ? 'Complete'
-                          : 'Next',
-                      icon: _step == _instructions.length - 1
+                      label: _step == _stepCount - 1 ? 'Complete' : 'Next',
+                      icon: _step == _stepCount - 1
                           ? Icons.check
                           : Icons.chevron_right,
                       onPressed: _next,
@@ -215,7 +216,7 @@ class _StepByStepScreenState extends State<StepByStepScreen> {
               ),
               const SizedBox(height: 9),
               OutlineAppButton(
-                label: 'View Comments (23)',
+                label: 'View Comments',
                 icon: Icons.chat_bubble_outline,
                 onPressed: () => _showComments(context),
               ),
@@ -227,11 +228,19 @@ class _StepByStepScreenState extends State<StepByStepScreen> {
   }
 
   Future<void> _showComments(BuildContext context) {
+    final tutorial = widget.tutorial;
+    if (tutorial == null || tutorial.steps[_step].id.isEmpty) {
+      showAppMessage(context, 'Comments are available for saved tutorials.');
+      return Future.value();
+    }
     return showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _CommentsSheet(step: _step + 1),
+      builder: (_) => _CommentsSheet(
+        tutorialId: tutorial.summary.id,
+        step: tutorial.steps[_step],
+      ),
     );
   }
 }
@@ -341,9 +350,10 @@ class _FoldDiagramPainter extends CustomPainter {
 }
 
 class _CommentsSheet extends StatefulWidget {
-  const _CommentsSheet({required this.step});
+  const _CommentsSheet({required this.tutorialId, required this.step});
 
-  final int step;
+  final String tutorialId;
+  final TutorialStepModel step;
 
   @override
   State<_CommentsSheet> createState() => _CommentsSheetState();
@@ -351,138 +361,581 @@ class _CommentsSheet extends StatefulWidget {
 
 class _CommentsSheetState extends State<_CommentsSheet> {
   final _controller = TextEditingController();
-  final _comments = <(String, String, String)>[
-    ('Alex', 'Great explanation! I finally understood this fold.', '2h ago'),
-    ('Maria', 'The direction arrow is very clear. Thanks!', '5h ago'),
-    ('John', 'I had to loosen the previous fold before this worked.', '1d ago'),
-  ];
+  final _focusNode = FocusNode();
+  final List<TutorialCommentDto> _comments = [];
+  TutorialCommentsApi? _api;
+  Timer? _clock;
+  bool _loading = true;
+  bool _sending = false;
+  String? _error;
+  TutorialCommentDto? _replyingTo;
+
+  @override
+  void initState() {
+    super.initState();
+    _clock = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _api ??= TutorialCommentsApi(
+      AuthScope.of(context, listen: false).apiClient,
+    );
+    if (_loading && _comments.isEmpty && _error == null) {
+      _loadComments();
+    }
+  }
 
   @override
   void dispose() {
+    _clock?.cancel();
     _controller.dispose();
+    _focusNode.dispose();
     super.dispose();
   }
 
-  void _send() {
+  Future<void> _loadComments() async {
+    final api = _api;
+    if (api == null) return;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final comments = await api.findStepComments(
+        tutorialId: widget.tutorialId,
+        stepId: widget.step.id,
+        size: 50,
+        sort: 'newest',
+      );
+      if (!mounted) return;
+      setState(() {
+        _comments
+          ..clear()
+          ..addAll(comments);
+      });
+      for (final comment in comments.where((item) => item.replyCount > 0)) {
+        final replies = await api.findReplies(comment.id, size: 50);
+        if (!mounted) return;
+        setState(() => _upsertAll(replies));
+      }
+    } on TutorialCommentsFailure catch (error) {
+      if (!mounted) return;
+      setState(() => _error = error.message);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _send() async {
+    final api = _api;
     final value = _controller.text.trim();
-    if (value.isEmpty) return;
-    setState(() => _comments.add(('You', value, 'now')));
-    _controller.clear();
+    if (api == null || value.isEmpty || _sending) return;
+    setState(() => _sending = true);
+    try {
+      final replyTarget = _replyingTo;
+      final created = replyTarget == null
+          ? await api.addStepComment(
+              tutorialId: widget.tutorialId,
+              stepId: widget.step.id,
+              content: value,
+            )
+          : await api.addReply(commentId: replyTarget.id, content: value);
+      if (!mounted) return;
+      setState(() {
+        _upsert(created);
+        _replyingTo = null;
+      });
+      _controller.clear();
+      FocusScope.of(context).unfocus();
+    } on TutorialCommentsFailure catch (error) {
+      if (mounted) showAppMessage(context, error.message);
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  Future<void> _toggleLike(TutorialCommentDto comment) async {
+    final api = _api;
+    if (api == null || comment.deleted) return;
+    try {
+      final updated = await api.toggleCommentLike(comment.id);
+      if (!mounted) return;
+      setState(() => _upsert(updated));
+    } on TutorialCommentsFailure catch (error) {
+      if (mounted) showAppMessage(context, error.message);
+    }
+  }
+
+  Future<void> _editComment(TutorialCommentDto comment) async {
+    final api = _api;
+    if (api == null) return;
+    final controller = TextEditingController(text: comment.content);
+    final updatedContent = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Edit comment'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLines: 4,
+          decoration: const InputDecoration(hintText: 'Update your comment...'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (updatedContent == null || updatedContent.isEmpty) return;
+    try {
+      final updated = await api.updateComment(
+        commentId: comment.id,
+        content: updatedContent,
+      );
+      if (!mounted) return;
+      setState(() => _upsert(updated));
+    } on TutorialCommentsFailure catch (error) {
+      if (mounted) showAppMessage(context, error.message);
+    }
+  }
+
+  Future<void> _deleteComment(TutorialCommentDto comment) async {
+    final api = _api;
+    if (api == null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete comment?'),
+        content: const Text('This comment will be marked as deleted.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      final deleted = await api.deleteComment(comment.id);
+      if (!mounted) return;
+      setState(() => _upsert(deleted));
+    } on TutorialCommentsFailure catch (error) {
+      if (mounted) showAppMessage(context, error.message);
+    }
+  }
+
+  void _startReply(TutorialCommentDto comment) {
+    if (comment.deleted) return;
+    setState(() => _replyingTo = comment);
+    _focusNode.requestFocus();
+  }
+
+  void _upsert(TutorialCommentDto comment) {
+    final index = _comments.indexWhere((item) => item.id == comment.id);
+    if (index == -1) {
+      _comments.add(comment);
+    } else {
+      _comments[index] = comment;
+    }
+  }
+
+  void _upsertAll(List<TutorialCommentDto> comments) {
+    for (final comment in comments) {
+      _upsert(comment);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final topLevelComments = _comments
+        .where(
+          (comment) => comment.parentId == null || comment.parentId!.isEmpty,
+        )
+        .toList(growable: false);
+
     return Padding(
       padding: EdgeInsets.only(
         top: MediaQuery.paddingOf(context).top + 80,
         bottom: MediaQuery.viewInsetsOf(context).bottom,
       ),
-      child: Material(
-        color: Colors.white,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
-        clipBehavior: Clip.antiAlias,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 15, 10, 12),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Step ${widget.step} Comments',
-                      style: serifTitle(20),
+      child: FractionallySizedBox(
+        heightFactor: .78,
+        child: Material(
+          color: Colors.white,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 15, 10, 12),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Step ${widget.step.stepNumber} Comments',
+                        style: serifTitle(20),
+                      ),
                     ),
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close),
-                  ),
-                ],
+                    IconButton(
+                      tooltip: 'Refresh comments',
+                      onPressed: _loading ? null : _loadComments,
+                      icon: const Icon(Icons.refresh),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const Divider(),
-            Flexible(
-              child: ListView.separated(
-                shrinkWrap: true,
-                padding: const EdgeInsets.all(20),
-                itemCount: _comments.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 18),
-                itemBuilder: (_, index) {
-                  final comment = _comments[index];
-                  return Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const UserAvatar(size: 40),
-                      const SizedBox(width: 11),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+              const Divider(),
+              Expanded(
+                child: _loading
+                    ? const Center(child: CircularProgressIndicator())
+                    : _error != null
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Text(
+                            _error!,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(color: AppColors.mutedText),
+                          ),
+                        ),
+                      )
+                    : topLevelComments.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'No comments for this step yet.',
+                          style: TextStyle(color: AppColors.mutedText),
+                        ),
+                      )
+                    : ListView.separated(
+                        padding: const EdgeInsets.all(20),
+                        itemCount: topLevelComments.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 18),
+                        itemBuilder: (_, index) {
+                          final comment = topLevelComments[index];
+                          final replies = _comments
+                              .where((reply) => reply.parentId == comment.id)
+                              .toList(growable: false);
+                          return _TutorialCommentThread(
+                            comment: comment,
+                            replies: replies,
+                            onReply: _startReply,
+                            onLike: _toggleLike,
+                            onEdit: _editComment,
+                            onDelete: _deleteComment,
+                          );
+                        },
+                      ),
+              ),
+              const Divider(),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_replyingTo != null) ...[
+                      Padding(
+                        padding: const EdgeInsets.only(left: 46, bottom: 8),
+                        child: Row(
                           children: [
-                            Row(
-                              children: [
-                                Text(
-                                  comment.$1,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                  ),
+                            Expanded(
+                              child: Text(
+                                'Replying to ${_replyingTo!.authorName}',
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: AppColors.mutedText,
+                                  fontSize: 12,
                                 ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  comment.$3,
-                                  style: const TextStyle(
-                                    color: AppColors.mutedText,
-                                    fontSize: 11,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 3),
-                            Text(
-                              comment.$2,
-                              style: const TextStyle(
-                                color: AppColors.mutedText,
-                                fontSize: 13,
                               ),
+                            ),
+                            TextButton(
+                              onPressed: _sending
+                                  ? null
+                                  : () => setState(() => _replyingTo = null),
+                              child: const Text('Cancel'),
                             ),
                           ],
                         ),
                       ),
                     ],
-                  );
-                },
-              ),
-            ),
-            const Divider(),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _controller,
-                      onSubmitted: (_) => _send(),
-                      decoration: const InputDecoration(
-                        hintText: 'Ask a question...',
-                        isDense: true,
-                      ),
+                    Row(
+                      children: [
+                        const UserAvatar(size: 36),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: TextField(
+                            controller: _controller,
+                            focusNode: _focusNode,
+                            textInputAction: TextInputAction.send,
+                            onSubmitted: (_) => _send(),
+                            decoration: InputDecoration(
+                              hintText: _replyingTo == null
+                                  ? 'Ask a question...'
+                                  : 'Reply to ${_replyingTo!.authorName}...',
+                              isDense: true,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton.filled(
+                          onPressed: _sending ? null : _send,
+                          style: IconButton.styleFrom(
+                            backgroundColor: AppColors.primaryDark,
+                            foregroundColor: Colors.white,
+                          ),
+                          icon: const Icon(Icons.send),
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton.filled(
-                    onPressed: _send,
-                    style: IconButton.styleFrom(
-                      backgroundColor: AppColors.primaryDark,
-                      foregroundColor: Colors.white,
-                    ),
-                    icon: const Icon(Icons.send),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
+}
+
+class _TutorialCommentThread extends StatelessWidget {
+  const _TutorialCommentThread({
+    required this.comment,
+    required this.replies,
+    required this.onReply,
+    required this.onLike,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final TutorialCommentDto comment;
+  final List<TutorialCommentDto> replies;
+  final ValueChanged<TutorialCommentDto> onReply;
+  final ValueChanged<TutorialCommentDto> onLike;
+  final ValueChanged<TutorialCommentDto> onEdit;
+  final ValueChanged<TutorialCommentDto> onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _TutorialCommentTile(
+          comment: comment,
+          onReply: () => onReply(comment),
+          onLike: () => onLike(comment),
+          onEdit: () => onEdit(comment),
+          onDelete: () => onDelete(comment),
+        ),
+        if (replies.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Padding(
+            padding: const EdgeInsets.only(left: 44),
+            child: Column(
+              children: [
+                for (final reply in replies) ...[
+                  _TutorialCommentTile(
+                    comment: reply,
+                    onReply: () => onReply(reply),
+                    onLike: () => onLike(reply),
+                    onEdit: () => onEdit(reply),
+                    onDelete: () => onDelete(reply),
+                  ),
+                  const SizedBox(height: 10),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _TutorialCommentTile extends StatelessWidget {
+  const _TutorialCommentTile({
+    required this.comment,
+    required this.onReply,
+    required this.onLike,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final TutorialCommentDto comment;
+  final VoidCallback onReply;
+  final VoidCallback onLike;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final canAct = !comment.deleted;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _CommentAvatar(url: comment.authorAvatarUrl, size: 38),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(11),
+                decoration: BoxDecoration(
+                  color: AppColors.input,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      comment.authorName,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      comment.content,
+                      style: TextStyle(
+                        color: comment.deleted
+                            ? AppColors.mutedText
+                            : AppColors.ink,
+                        fontStyle: comment.deleted
+                            ? FontStyle.italic
+                            : FontStyle.normal,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  Text(
+                    comment.edited
+                        ? '${_relativeTime(comment.createdAt)} · Edited'
+                        : _relativeTime(comment.createdAt),
+                    style: const TextStyle(
+                      color: AppColors.mutedText,
+                      fontSize: 11,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  InkWell(
+                    onTap: canAct ? onLike : null,
+                    child: Text(
+                      comment.likeCount == 0
+                          ? 'Like'
+                          : 'Like (${comment.likeCount})',
+                      style: TextStyle(
+                        color: comment.likedByCurrentUser
+                            ? AppColors.primaryDark
+                            : AppColors.mutedText,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  InkWell(
+                    onTap: canAct ? onReply : null,
+                    child: Text(
+                      'Reply',
+                      style: TextStyle(
+                        color: canAct
+                            ? AppColors.primaryDark
+                            : AppColors.mutedText,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  if (comment.canEdit || comment.canDelete) ...[
+                    const Spacer(),
+                    PopupMenuButton<String>(
+                      tooltip: 'Comment actions',
+                      padding: EdgeInsets.zero,
+                      onSelected: (value) {
+                        if (value == 'edit') onEdit();
+                        if (value == 'delete') onDelete();
+                      },
+                      itemBuilder: (_) => [
+                        if (comment.canEdit)
+                          const PopupMenuItem(
+                            value: 'edit',
+                            child: Text('Edit'),
+                          ),
+                        if (comment.canDelete)
+                          const PopupMenuItem(
+                            value: 'delete',
+                            child: Text('Delete'),
+                          ),
+                      ],
+                      child: const Icon(
+                        Icons.more_horiz,
+                        size: 18,
+                        color: AppColors.mutedText,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CommentAvatar extends StatelessWidget {
+  const _CommentAvatar({required this.url, required this.size});
+
+  final String url;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    if (url.isEmpty) return UserAvatar(size: size);
+    return AppNetworkImage(
+      url: url,
+      width: size,
+      height: size,
+      borderRadius: BorderRadius.circular(size / 2),
+    );
+  }
+}
+
+String _relativeTime(DateTime? createdAt) {
+  if (createdAt == null) return 'just now';
+  final difference = DateTime.now().difference(createdAt.toLocal());
+  if (difference.inSeconds < 45) return 'just now';
+  if (difference.inMinutes < 60) return '${difference.inMinutes}m ago';
+  if (difference.inHours < 24) return '${difference.inHours}h ago';
+  if (difference.inDays < 7) return '${difference.inDays}d ago';
+  final weeks = difference.inDays ~/ 7;
+  if (weeks < 5) return '${weeks}w ago';
+  final months = difference.inDays ~/ 30;
+  if (months < 12) return '${months}mo ago';
+  return '${difference.inDays ~/ 365}y ago';
 }

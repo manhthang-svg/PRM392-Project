@@ -46,6 +46,7 @@ class LibraryTutorial {
 
 class TutorialStepModel {
   const TutorialStepModel({
+    required this.id,
     required this.stepNumber,
     required this.title,
     required this.description,
@@ -54,6 +55,7 @@ class TutorialStepModel {
 
   factory TutorialStepModel.fromJson(Map<String, dynamic> json) {
     return TutorialStepModel(
+      id: '${json['id'] ?? ''}',
       stepNumber: (json['stepNumber'] as num?)?.toInt() ?? 0,
       title: json['title'] as String? ?? '',
       description: json['description'] as String? ?? '',
@@ -61,6 +63,7 @@ class TutorialStepModel {
     );
   }
 
+  final String id;
   final int stepNumber;
   final String title;
   final String description;
