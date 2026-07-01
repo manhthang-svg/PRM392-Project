@@ -685,11 +685,73 @@ class SocialConnectionsScreen extends StatefulWidget {
 
 class _SocialConnectionsScreenState extends State<SocialConnectionsScreen> {
   final _searchController = TextEditingController();
+  final Set<String> _busyUserIds = {};
+  ProfileApi? _api;
+  bool _loaded = false;
+  bool _loading = false;
+  String? _error;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _api ??= ProfileApi(AuthScope.of(context, listen: false).apiClient);
+    if (!_loaded) {
+      _loaded = true;
+      _loadConnections();
+    }
+  }
 
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadConnections() async {
+    final api = _api;
+    if (api == null) return;
+    final state = AppStateScope.of(context, listen: false);
+    final isFollowers = widget.mode == SocialConnectionMode.followers;
+
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    try {
+      final users = isFollowers
+          ? await api.followers(state.currentUser.id)
+          : await api.following(state.currentUser.id);
+      if (!mounted) return;
+      if (isFollowers) {
+        state.replaceFollowerUsers(users);
+      } else {
+        state.replaceFollowingUsers(users);
+      }
+    } on ProfileFailure catch (error) {
+      if (!mounted) return;
+      setState(() => _error = error.message);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _toggleFollow(UserProfileData user) async {
+    final api = _api;
+    if (api == null || _busyUserIds.contains(user.id)) return;
+    setState(() => _busyUserIds.add(user.id));
+    try {
+      final updated = user.isFollowing
+          ? await api.unfollow(user.id)
+          : await api.follow(user.id);
+      if (!mounted) return;
+      final state = AppStateScope.of(context, listen: false);
+      state.applyFollowResult(updated, wasFollowing: user.isFollowing);
+    } on ProfileFailure catch (error) {
+      if (mounted) showAppMessage(context, error.message);
+    } finally {
+      if (mounted) setState(() => _busyUserIds.remove(user.id));
+    }
   }
 
   @override
@@ -745,94 +807,170 @@ class _SocialConnectionsScreenState extends State<SocialConnectionsScreen> {
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
             child: Align(
               alignment: Alignment.centerLeft,
-              child: Text(
-                '${_compactNumber(total)} ${isFollowers ? 'followers' : 'following'}',
-                style: const TextStyle(
-                  color: AppColors.mutedText,
-                  fontSize: 12,
-                ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '${_compactNumber(total)} ${isFollowers ? 'followers' : 'following'}',
+                      style: const TextStyle(
+                        color: AppColors.mutedText,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                  if (_loading)
+                    const SizedBox.square(
+                      dimension: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                ],
               ),
             ),
           ),
           const Divider(),
           Expanded(
-            child: users.isEmpty
-                ? Center(
-                    child: Text(
-                      query.isEmpty
-                          ? isFollowers
-                                ? 'No followers to show yet.'
-                                : 'You are not following anyone yet.'
-                          : 'No users match your search.',
-                      style: const TextStyle(color: AppColors.mutedText),
-                    ),
-                  )
-                : ListView.separated(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    itemCount: users.length,
-                    separatorBuilder: (_, _) => const Divider(indent: 82),
-                    itemBuilder: (_, index) {
-                      final user = users[index];
-                      return ListTile(
-                        onTap: () => Navigator.pushNamed(
-                          context,
-                          AppRoutes.publicProfile,
-                          arguments: user.id,
+            child: RefreshIndicator(
+              onRefresh: _loadConnections,
+              child: _error != null && users.isEmpty
+                  ? ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(24, 90, 24, 24),
+                      children: [
+                        Icon(
+                          Icons.cloud_off_outlined,
+                          color: AppColors.primaryDark,
+                          size: 48,
                         ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 5,
+                        const SizedBox(height: 12),
+                        Text(
+                          _error!,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: AppColors.mutedText),
                         ),
-                        leading: const UserAvatar(size: 50),
-                        title: Text(
-                          user.name,
-                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        const SizedBox(height: 14),
+                        TextButton.icon(
+                          onPressed: _loadConnections,
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Try again'),
                         ),
-                        subtitle: Text(
-                          user.handle,
-                          style: const TextStyle(
-                            color: AppColors.mutedText,
-                            fontSize: 12,
+                      ],
+                    )
+                  : users.isEmpty
+                  ? ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(24, 90, 24, 24),
+                      children: [
+                        Icon(
+                          isFollowers
+                              ? Icons.people_outline
+                              : Icons.person_add_alt_outlined,
+                          color: AppColors.primaryDark,
+                          size: 48,
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          query.isEmpty
+                              ? isFollowers
+                                    ? 'No followers to show yet.'
+                                    : 'You are not following anyone yet.'
+                              : 'No users match your search.',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: AppColors.mutedText),
+                        ),
+                      ],
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      itemCount: users.length,
+                      separatorBuilder: (_, _) => const Divider(indent: 82),
+                      itemBuilder: (_, index) {
+                        final user = users[index];
+                        return ListTile(
+                          onTap: () => Navigator.pushNamed(
+                            context,
+                            AppRoutes.publicProfile,
+                            arguments: user.id,
                           ),
-                        ),
-                        trailing: user.isFollowing
-                            ? OutlinedButton(
-                                onPressed: () => state.toggleFollow(user.id),
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: AppColors.ink,
-                                  side: const BorderSide(
-                                    color: AppColors.border,
-                                  ),
-                                  visualDensity: VisualDensity.compact,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 5,
+                          ),
+                          leading: user.avatarUrl.isEmpty
+                              ? const UserAvatar(size: 50)
+                              : AppNetworkImage(
+                                  url: user.avatarUrl,
+                                  width: 50,
+                                  height: 50,
+                                  borderRadius: BorderRadius.circular(25),
                                 ),
-                                child: const Text(
-                                  'Following',
-                                  style: TextStyle(fontSize: 12),
+                          title: Text(
+                            user.name,
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          subtitle: Text(
+                            user.handle,
+                            style: const TextStyle(
+                              color: AppColors.mutedText,
+                              fontSize: 12,
+                            ),
+                          ),
+                          trailing: isFollowers
+                              ? null
+                              : _ConnectionFollowButton(
+                                  following: user.isFollowing,
+                                  busy: _busyUserIds.contains(user.id),
+                                  onPressed: () => _toggleFollow(user),
                                 ),
-                              )
-                            : FilledButton.icon(
-                                onPressed: () => state.toggleFollow(user.id),
-                                style: FilledButton.styleFrom(
-                                  backgroundColor: AppColors.primaryDark,
-                                  foregroundColor: Colors.white,
-                                  visualDensity: VisualDensity.compact,
-                                ),
-                                icon: const Icon(
-                                  Icons.person_add_outlined,
-                                  size: 15,
-                                ),
-                                label: const Text(
-                                  'Follow',
-                                  style: TextStyle(fontSize: 12),
-                                ),
-                              ),
-                      );
-                    },
-                  ),
+                        );
+                      },
+                    ),
+            ),
           ),
         ],
       ),
     );
+  }
+}
+
+class _ConnectionFollowButton extends StatelessWidget {
+  const _ConnectionFollowButton({
+    required this.following,
+    required this.busy,
+    required this.onPressed,
+  });
+
+  final bool following;
+  final bool busy;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    if (busy) {
+      return const SizedBox.square(
+        dimension: 28,
+        child: CircularProgressIndicator(strokeWidth: 2),
+      );
+    }
+    return following
+        ? OutlinedButton(
+            onPressed: onPressed,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.ink,
+              side: const BorderSide(color: AppColors.border),
+              visualDensity: VisualDensity.compact,
+            ),
+            child: const Text('Following', style: TextStyle(fontSize: 12)),
+          )
+        : FilledButton.icon(
+            onPressed: onPressed,
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.primaryDark,
+              foregroundColor: Colors.white,
+              visualDensity: VisualDensity.compact,
+            ),
+            icon: const Icon(Icons.person_add_outlined, size: 15),
+            label: const Text('Follow', style: TextStyle(fontSize: 12)),
+          );
   }
 }
 

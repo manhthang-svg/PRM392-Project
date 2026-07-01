@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'package:origami/app/routes.dart';
 import 'package:origami/app/theme.dart';
+import 'package:origami/core/auth/auth_session.dart';
+import 'package:origami/core/profile/user_search_api.dart';
 import 'package:origami/core/state/app_state.dart';
 import 'package:origami/core/widgets/common.dart';
 
@@ -14,23 +18,67 @@ class SearchUsersScreen extends StatefulWidget {
 
 class _SearchUsersScreenState extends State<SearchUsersScreen> {
   final _controller = TextEditingController();
-  final List<String> _recentIds = ['sarah', 'yuki'];
+  final List<String> _recentIds = [];
+
+  UserSearchApi? _api;
+  Timer? _debounce;
+  bool _loading = false;
+  String? _error;
+  List<String> _resultIds = const [];
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _api ??= UserSearchApi(AuthScope.of(context, listen: false).apiClient);
+    if (_resultIds.isEmpty && !_loading) _search();
+  }
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _controller.dispose();
     super.dispose();
+  }
+
+  void _onQueryChanged(String _) {
+    setState(() {});
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 350), _search);
+  }
+
+  Future<void> _search() async {
+    final api = _api;
+    if (api == null) return;
+    final query = _controller.text.trim();
+
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    try {
+      final results = await api.search(query: query, size: 30);
+      if (!mounted) return;
+      AppStateScope.of(context, listen: false).upsertUsersFromSearch(results);
+      setState(() {
+        _resultIds = results.map((user) => user.id).toList(growable: false);
+      });
+    } on UserSearchFailure catch (error) {
+      if (!mounted) return;
+      setState(() => _error = error.message);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final state = AppStateScope.of(context);
-    final query = _controller.text.trim().toLowerCase();
-    final results = state.users.where((user) {
-      return query.isEmpty ||
-          user.name.toLowerCase().contains(query) ||
-          user.handle.toLowerCase().contains(query);
-    }).toList();
+    final query = _controller.text.trim();
+    final results = _resultIds
+        .map(state.userById)
+        .where((user) => user.id != state.currentUser.id)
+        .toList(growable: false);
 
     return Scaffold(
       appBar: AppBar(
@@ -42,15 +90,21 @@ class _SearchUsersScreenState extends State<SearchUsersScreen> {
             child: TextField(
               controller: _controller,
               autofocus: true,
-              onChanged: (_) => setState(() {}),
+              textInputAction: TextInputAction.search,
+              onChanged: _onQueryChanged,
+              onSubmitted: (_) {
+                _debounce?.cancel();
+                _search();
+              },
               decoration: InputDecoration(
-                hintText: 'Search for creators, friends...',
+                hintText: 'Search by name, username or email...',
                 prefixIcon: const Icon(Icons.search),
                 suffixIcon: query.isEmpty
                     ? null
                     : IconButton(
                         onPressed: () {
                           _controller.clear();
+                          _search();
                           setState(() {});
                         },
                         icon: const Icon(Icons.close),
@@ -60,62 +114,84 @@ class _SearchUsersScreenState extends State<SearchUsersScreen> {
           ),
         ),
       ),
-      body: ListView(
-        padding: EdgeInsets.zero,
-        children: [
-          if (query.isEmpty && _recentIds.isNotEmpty) ...[
-            const Padding(
-              padding: EdgeInsets.fromLTRB(20, 18, 20, 8),
-              child: Text(
-                'Recent Searches',
-                style: TextStyle(color: AppColors.mutedText, fontSize: 13),
-              ),
-            ),
-            ..._recentIds.map((id) {
-              final user = state.userById(id);
-              return _UserTile(
-                user: user,
-                onTap: () => _openProfile(context, user.id),
-                trailing: IconButton(
-                  onPressed: () => setState(() => _recentIds.remove(id)),
-                  icon: const Icon(Icons.close, size: 20),
-                  color: AppColors.mutedText,
-                ),
-              );
-            }),
-            const SizedBox(height: 8),
-            const Divider(thickness: 8, color: AppColors.input),
-          ],
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
-            child: Text(
-              query.isEmpty ? 'Suggested for You' : 'Search Results',
-              style: const TextStyle(color: AppColors.mutedText, fontSize: 13),
-            ),
-          ),
-          if (results.isEmpty)
-            const Padding(
-              padding: EdgeInsets.only(top: 70),
-              child: Center(
+      body: RefreshIndicator(
+        onRefresh: _search,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: EdgeInsets.zero,
+          children: [
+            if (query.isEmpty && _recentIds.isNotEmpty) ...[
+              const Padding(
+                padding: EdgeInsets.fromLTRB(20, 18, 20, 8),
                 child: Text(
-                  'No creators found.',
-                  style: TextStyle(color: AppColors.mutedText),
+                  'Recent Searches',
+                  style: TextStyle(color: AppColors.mutedText, fontSize: 13),
                 ),
               ),
-            )
-          else
-            ...results.map(
-              (user) => _UserTile(
-                user: user,
-                onTap: () => _openProfile(context, user.id),
-                trailing: _FollowButton(
-                  following: user.isFollowing,
-                  onPressed: () => state.toggleFollow(user.id),
-                ),
+              ..._recentIds.map((id) {
+                final user = state.userById(id);
+                return _UserTile(
+                  user: user,
+                  onTap: () => _openProfile(context, user.id),
+                  trailing: IconButton(
+                    onPressed: () => setState(() => _recentIds.remove(id)),
+                    icon: const Icon(Icons.close, size: 20),
+                    color: AppColors.mutedText,
+                  ),
+                );
+              }),
+              const SizedBox(height: 8),
+              const Divider(thickness: 8, color: AppColors.input),
+            ],
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      query.isEmpty ? 'Suggested for You' : 'Search Results',
+                      style: const TextStyle(
+                        color: AppColors.mutedText,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                  if (_loading)
+                    const SizedBox.square(
+                      dimension: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                ],
               ),
             ),
-          const SizedBox(height: 24),
-        ],
+            if (_error != null)
+              _SearchMessage(
+                icon: Icons.cloud_off_outlined,
+                message: _error!,
+                actionLabel: 'Try again',
+                onAction: _search,
+              )
+            else if (!_loading && results.isEmpty)
+              _SearchMessage(
+                icon: Icons.person_search_outlined,
+                message: query.isEmpty
+                    ? 'No creators to suggest yet.'
+                    : 'No creators found for "$query".',
+              )
+            else
+              ...results.map(
+                (user) => _UserTile(
+                  user: user,
+                  onTap: () => _openProfile(context, user.id),
+                  trailing: _FollowButton(
+                    following: user.isFollowing,
+                    onPressed: () => state.toggleFollow(user.id),
+                  ),
+                ),
+              ),
+            const SizedBox(height: 24),
+          ],
+        ),
       ),
     );
   }
@@ -125,6 +201,46 @@ class _SearchUsersScreenState extends State<SearchUsersScreen> {
       setState(() => _recentIds.insert(0, userId));
     }
     Navigator.pushNamed(context, AppRoutes.publicProfile, arguments: userId);
+  }
+}
+
+class _SearchMessage extends StatelessWidget {
+  const _SearchMessage({
+    required this.icon,
+    required this.message,
+    this.actionLabel,
+    this.onAction,
+  });
+
+  final IconData icon;
+  final String message;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 70, 24, 24),
+      child: Column(
+        children: [
+          Icon(icon, color: AppColors.primaryDark, size: 48),
+          const SizedBox(height: 12),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: AppColors.mutedText),
+          ),
+          if (actionLabel != null && onAction != null) ...[
+            const SizedBox(height: 14),
+            TextButton.icon(
+              onPressed: onAction,
+              icon: const Icon(Icons.refresh),
+              label: Text(actionLabel!),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 }
 
@@ -144,9 +260,11 @@ class _UserTile extends StatelessWidget {
     return ListTile(
       onTap: onTap,
       contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 5),
-      leading: const UserAvatar(size: 50),
+      leading: _SearchUserAvatar(url: user.avatarUrl),
       title: Text(
         user.name,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: const TextStyle(fontWeight: FontWeight.w600),
       ),
       subtitle: Text(
@@ -156,6 +274,23 @@ class _UserTile extends StatelessWidget {
         style: const TextStyle(color: AppColors.mutedText, fontSize: 12),
       ),
       trailing: trailing,
+    );
+  }
+}
+
+class _SearchUserAvatar extends StatelessWidget {
+  const _SearchUserAvatar({required this.url});
+
+  final String url;
+
+  @override
+  Widget build(BuildContext context) {
+    if (url.isEmpty) return const UserAvatar(size: 50);
+    return AppNetworkImage(
+      url: url,
+      width: 50,
+      height: 50,
+      borderRadius: BorderRadius.circular(25),
     );
   }
 }
