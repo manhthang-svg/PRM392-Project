@@ -45,6 +45,58 @@ class ProfileApi {
     }
   }
 
+  Future<List<UserProfileDto>> followers(String userId) async {
+    try {
+      final response = await _client.dio.get<Map<String, dynamic>>(
+        '/api/users/$userId/followers',
+      );
+      return _profilesFromEnvelope(response.data);
+    } on DioException catch (error) {
+      throw ProfileFailure.fromDio(error);
+    } on FormatException catch (error) {
+      throw ProfileFailure(error.message);
+    }
+  }
+
+  Future<List<UserProfileDto>> following(String userId) async {
+    try {
+      final response = await _client.dio.get<Map<String, dynamic>>(
+        '/api/users/$userId/following',
+      );
+      return _profilesFromEnvelope(response.data);
+    } on DioException catch (error) {
+      throw ProfileFailure.fromDio(error);
+    } on FormatException catch (error) {
+      throw ProfileFailure(error.message);
+    }
+  }
+
+  Future<UserProfileDto> follow(String userId) async {
+    try {
+      final response = await _client.dio.post<Map<String, dynamic>>(
+        '/api/users/$userId/follow',
+      );
+      return _profileFromEnvelope(response.data);
+    } on DioException catch (error) {
+      throw ProfileFailure.fromDio(error);
+    } on FormatException catch (error) {
+      throw ProfileFailure(error.message);
+    }
+  }
+
+  Future<UserProfileDto> unfollow(String userId) async {
+    try {
+      final response = await _client.dio.delete<Map<String, dynamic>>(
+        '/api/users/$userId/follow',
+      );
+      return _profileFromEnvelope(response.data);
+    } on DioException catch (error) {
+      throw ProfileFailure.fromDio(error);
+    } on FormatException catch (error) {
+      throw ProfileFailure(error.message);
+    }
+  }
+
   Future<UploadedImage> uploadAvatar(XFile image) async {
     try {
       final bytes = await image.readAsBytes();
@@ -79,6 +131,17 @@ class ProfileApi {
     }
     return UserProfileDto.fromJson(Map<String, dynamic>.from(data));
   }
+
+  List<UserProfileDto> _profilesFromEnvelope(Map<String, dynamic>? envelope) {
+    final data = envelope?['data'];
+    if (data is! List) {
+      throw const FormatException('Invalid profile list response');
+    }
+    return data
+        .whereType<Map>()
+        .map((item) => UserProfileDto.fromJson(Map<String, dynamic>.from(item)))
+        .toList(growable: false);
+  }
 }
 
 class UserProfileDto {
@@ -89,6 +152,9 @@ class UserProfileDto {
     required this.handle,
     required this.bio,
     required this.avatarUrl,
+    required this.followers,
+    required this.following,
+    required this.isFollowing,
   });
 
   factory UserProfileDto.fromJson(Map<String, dynamic> json) {
@@ -104,6 +170,9 @@ class UserProfileDto {
           : '@$handle',
       bio: json['bio'] as String? ?? '',
       avatarUrl: json['avatarUrl'] as String? ?? '',
+      followers: _readInt(json['followerCount']),
+      following: _readInt(json['followingCount']),
+      isFollowing: json['followedByCurrentUser'] == true,
     );
   }
 
@@ -113,6 +182,15 @@ class UserProfileDto {
   final String handle;
   final String bio;
   final String avatarUrl;
+  final int followers;
+  final int following;
+  final bool isFollowing;
+
+  static int _readInt(Object? value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse('${value ?? ''}') ?? 0;
+  }
 }
 
 class ProfileFailure implements Exception {

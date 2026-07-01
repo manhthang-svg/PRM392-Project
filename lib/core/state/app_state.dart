@@ -3,6 +3,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:origami/core/library/tutorial_models.dart';
 import 'package:origami/core/newsfeed/newsfeed_api.dart';
 import 'package:origami/core/profile/profile_api.dart';
+import 'package:origami/core/profile/user_search_api.dart';
 
 const artworkOne =
     'https://images.unsplash.com/photo-1616680214084-22670a2a9e34?w=900&h=900&fit=crop';
@@ -543,6 +544,8 @@ class AppState extends ChangeNotifier {
   ];
 
   final Set<String> savedTutorialIds = {'classic-crane', 'lotus-flower'};
+  final Set<String> followerUserIds = {};
+  final Set<String> followingUserIds = {};
 
   final List<FoldHistoryData> foldHistory = [
     const FoldHistoryData(
@@ -575,15 +578,129 @@ class AppState extends ChangeNotifier {
       .where((tutorial) => savedTutorialIds.contains(tutorial.id))
       .toList();
 
-  List<UserProfileData> get followerUsers =>
-      users.where((user) => user.isFollower).toList();
+  List<UserProfileData> get followerUsers => followerUserIds
+      .map(userById)
+      .where((user) => user.id != currentUser.id)
+      .toList();
 
-  List<UserProfileData> get followingUsers =>
-      users.where((user) => user.isFollowing).toList();
+  List<UserProfileData> get followingUsers => followingUserIds
+      .map(userById)
+      .where((user) => user.id != currentUser.id)
+      .toList();
 
   UserProfileData userById(String id) {
     if (id == currentUser.id) return currentUser;
     return users.firstWhere((user) => user.id == id);
+  }
+
+  void upsertUsersFromSearch(List<UserSearchDto> values) {
+    for (final value in values) {
+      if (value.id.isEmpty || value.id == currentUser.id) continue;
+      final user = UserProfileData(
+        id: value.id,
+        name: value.name,
+        handle: value.handle.isEmpty ? value.username : value.handle,
+        bio: value.bio,
+        avatarUrl: value.avatarUrl,
+        followers: value.followers,
+        following: value.following,
+        isFollowing: value.isFollowing,
+      );
+      final index = users.indexWhere((item) => item.id == user.id);
+      if (index >= 0) {
+        final existing = users[index];
+        users[index] = existing.copyWith(
+          name: user.name,
+          handle: user.handle,
+          bio: user.bio,
+          avatarUrl: user.avatarUrl,
+          followers: user.followers,
+          following: user.following,
+          isFollowing: user.isFollowing,
+        );
+      } else {
+        users.add(user);
+      }
+    }
+    notifyListeners();
+  }
+
+  void replaceFollowerUsers(List<UserProfileDto> values) {
+    followerUserIds
+      ..clear()
+      ..addAll(values.map((user) => user.id).where((id) => id.isNotEmpty));
+    _upsertProfileDtos(values, isFollower: true);
+    currentUser = currentUser.copyWith(followers: values.length);
+    notifyListeners();
+  }
+
+  void replaceFollowingUsers(List<UserProfileDto> values) {
+    followingUserIds
+      ..clear()
+      ..addAll(values.map((user) => user.id).where((id) => id.isNotEmpty));
+    _upsertProfileDtos(values, isFollowing: true);
+    currentUser = currentUser.copyWith(following: values.length);
+    notifyListeners();
+  }
+
+  void upsertUserFromProfile(UserProfileDto value) {
+    _upsertProfileDtos([value]);
+    notifyListeners();
+  }
+
+  void applyFollowResult(UserProfileDto value, {required bool wasFollowing}) {
+    _upsertProfileDtos([value]);
+    if (wasFollowing != value.isFollowing) {
+      if (value.isFollowing) {
+        followingUserIds.add(value.id);
+      } else {
+        followingUserIds.remove(value.id);
+      }
+      currentUser = currentUser.copyWith(
+        following: currentUser.following + (value.isFollowing ? 1 : -1),
+      );
+    }
+    notifyListeners();
+  }
+
+  void _upsertProfileDtos(
+    List<UserProfileDto> values, {
+    bool? isFollower,
+    bool? isFollowing,
+  }) {
+    for (final value in values) {
+      if (value.id.isEmpty || value.id == currentUser.id) continue;
+      final index = users.indexWhere((item) => item.id == value.id);
+      if (index >= 0) {
+        final existing = users[index];
+        users[index] = existing.copyWith(
+          name: value.displayName.isEmpty ? value.username : value.displayName,
+          handle: value.handle.isEmpty ? value.username : value.handle,
+          bio: value.bio,
+          avatarUrl: value.avatarUrl,
+          followers: value.followers,
+          following: value.following,
+          isFollower: isFollower ?? existing.isFollower,
+          isFollowing: isFollowing ?? value.isFollowing,
+        );
+      } else {
+        users.add(
+          UserProfileData(
+            id: value.id,
+            name: value.displayName.isEmpty
+                ? value.username
+                : value.displayName,
+            handle: value.handle.isEmpty ? value.username : value.handle,
+            bio: value.bio,
+            avatarUrl: value.avatarUrl,
+            followers: value.followers,
+            following: value.following,
+            isFollower: isFollower ?? false,
+            isFollowing: isFollowing ?? value.isFollowing,
+          ),
+        );
+      }
+    }
   }
 
   void addPost({required String caption, required List<XFile> images}) {
@@ -766,6 +883,8 @@ class AppState extends ChangeNotifier {
       handle: profile.handle,
       bio: profile.bio,
       avatarUrl: profile.avatarUrl,
+      followers: profile.followers,
+      following: profile.following,
     );
     if (profile.avatarUrl.isNotEmpty) currentAvatar = null;
     for (final post in posts.where((post) => post.authorId == currentUser.id)) {
