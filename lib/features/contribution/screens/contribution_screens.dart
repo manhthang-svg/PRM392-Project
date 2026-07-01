@@ -6,6 +6,7 @@ import 'package:origami/app/theme.dart';
 import 'package:origami/core/auth/auth_session.dart';
 import 'package:origami/core/library/library_api.dart';
 import 'package:origami/core/library/tutorial_models.dart';
+import 'package:origami/core/newsfeed/newsfeed_api.dart';
 import 'package:origami/core/state/app_state.dart';
 import 'package:origami/core/widgets/common.dart';
 
@@ -350,7 +351,15 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   final _captionController = TextEditingController();
   final _picker = ImagePicker();
   final List<XFile> _images = [];
+  NewsfeedApi? _api;
   bool _picking = false;
+  bool _publishing = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _api ??= NewsfeedApi(AuthScope.of(context, listen: false).apiClient);
+  }
 
   @override
   void dispose() {
@@ -372,7 +381,8 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     }
   }
 
-  void _publish() {
+  Future<void> _publish() async {
+    if (_publishing) return;
     final caption = _captionController.text.trim();
     if (caption.isEmpty) {
       showAppMessage(context, 'Please write a caption');
@@ -382,12 +392,22 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       showAppMessage(context, 'Please upload at least one photo');
       return;
     }
-    AppStateScope.of(
-      context,
-      listen: false,
-    ).addPost(caption: caption, images: _images);
-    showAppMessage(context, 'Your post is now on the Newsfeed');
-    Navigator.pop(context);
+    setState(() => _publishing = true);
+    try {
+      final uploadedUrls = <String>[];
+      for (final image in _images) {
+        final uploaded = await _api!.uploadImage(image);
+        uploadedUrls.add(uploaded.secureUrl);
+      }
+      await _api!.createPost(caption: caption, mediaUrls: uploadedUrls);
+      if (!mounted) return;
+      showAppMessage(context, 'Post sent for admin review');
+      Navigator.pop(context);
+    } on NewsfeedFailure catch (error) {
+      if (mounted) showAppMessage(context, error.message);
+    } finally {
+      if (mounted) setState(() => _publishing = false);
+    }
   }
 
   @override
@@ -462,9 +482,9 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 10, 20, 14),
           child: PrimaryButton(
-            label: 'Publish Post',
-            icon: Icons.send_outlined,
-            onPressed: _publish,
+            label: _publishing ? 'Submitting...' : 'Submit for Review',
+            icon: _publishing ? null : Icons.send_outlined,
+            onPressed: _publishing ? null : _publish,
           ),
         ),
       ),
