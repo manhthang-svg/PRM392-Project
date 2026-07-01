@@ -486,15 +486,49 @@ class _EditField extends StatelessWidget {
   }
 }
 
-class PublicProfileScreen extends StatelessWidget {
+class PublicProfileScreen extends StatefulWidget {
   const PublicProfileScreen({required this.userId, super.key});
 
   final String userId;
 
   @override
+  State<PublicProfileScreen> createState() => _PublicProfileScreenState();
+}
+
+class _PublicProfileScreenState extends State<PublicProfileScreen> {
+  ProfileApi? _api;
+  bool _followBusy = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _api ??= ProfileApi(AuthScope.of(context, listen: false).apiClient);
+  }
+
+  Future<void> _toggleFollow(UserProfileData user) async {
+    final api = _api;
+    if (api == null || _followBusy) return;
+    setState(() => _followBusy = true);
+    try {
+      final updated = user.isFollowing
+          ? await api.unfollow(user.id)
+          : await api.follow(user.id);
+      if (!mounted) return;
+      AppStateScope.of(
+        context,
+        listen: false,
+      ).applyFollowResult(updated, wasFollowing: user.isFollowing);
+    } on ProfileFailure catch (error) {
+      if (mounted) showAppMessage(context, error.message);
+    } finally {
+      if (mounted) setState(() => _followBusy = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final state = AppStateScope.of(context);
-    final user = state.userById(userId);
+    final user = state.userById(widget.userId);
 
     return Scaffold(
       appBar: AppBar(
@@ -529,16 +563,18 @@ class PublicProfileScreen extends StatelessWidget {
           const SizedBox(height: 22),
           SizedBox(
             width: double.infinity,
-            child: user.isFollowing
+            child: _followBusy
+                ? const Center(child: CircularProgressIndicator())
+                : user.isFollowing
                 ? OutlineAppButton(
                     label: 'Following',
                     icon: Icons.check,
-                    onPressed: () => state.toggleFollow(user.id),
+                    onPressed: () => _toggleFollow(user),
                   )
                 : PrimaryButton(
                     label: 'Follow',
                     icon: Icons.person_add_outlined,
-                    onPressed: () => state.toggleFollow(user.id),
+                    onPressed: () => _toggleFollow(user),
                   ),
           ),
           const SizedBox(height: 27),
@@ -688,6 +724,7 @@ class _SocialConnectionsScreenState extends State<SocialConnectionsScreen> {
   final Set<String> _busyUserIds = {};
   ProfileApi? _api;
   bool _loaded = false;
+  bool _connectionsLoaded = false;
   bool _loading = false;
   String? _error;
 
@@ -728,9 +765,13 @@ class _SocialConnectionsScreenState extends State<SocialConnectionsScreen> {
       } else {
         state.replaceFollowingUsers(users);
       }
+      _connectionsLoaded = true;
     } on ProfileFailure catch (error) {
       if (!mounted) return;
-      setState(() => _error = error.message);
+      setState(() {
+        _error = error.message;
+        _connectionsLoaded = true;
+      });
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -767,6 +808,9 @@ class _SocialConnectionsScreenState extends State<SocialConnectionsScreen> {
     final total = isFollowers
         ? state.currentUser.followers
         : state.currentUser.following;
+    final displayTotal = _connectionsLoaded && query.isEmpty
+        ? source.length
+        : total;
 
     return Scaffold(
       appBar: AppBar(
@@ -811,7 +855,7 @@ class _SocialConnectionsScreenState extends State<SocialConnectionsScreen> {
                 children: [
                   Expanded(
                     child: Text(
-                      '${_compactNumber(total)} ${isFollowers ? 'followers' : 'following'}',
+                      '${_compactNumber(displayTotal)} ${isFollowers ? 'followers' : 'following'}',
                       style: const TextStyle(
                         color: AppColors.mutedText,
                         fontSize: 12,
@@ -831,7 +875,9 @@ class _SocialConnectionsScreenState extends State<SocialConnectionsScreen> {
           Expanded(
             child: RefreshIndicator(
               onRefresh: _loadConnections,
-              child: _error != null && users.isEmpty
+              child: _loading && !_connectionsLoaded && users.isEmpty
+                  ? const Center(child: CircularProgressIndicator())
+                  : _error != null && users.isEmpty
                   ? ListView(
                       physics: const AlwaysScrollableScrollPhysics(),
                       padding: const EdgeInsets.fromLTRB(24, 90, 24, 24),

@@ -33,6 +33,11 @@ class AppNetworkImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    Widget constrain(Widget child) {
+      if (width == null && height == null) return child;
+      return SizedBox(width: width, height: height, child: child);
+    }
+
     final image = Image.network(
       url,
       height: height,
@@ -40,30 +45,35 @@ class AppNetworkImage extends StatelessWidget {
       fit: fit,
       frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
         if (wasSynchronouslyLoaded || frame != null) return child;
-        return const ColoredBox(
-          color: AppColors.accent,
-          child: Center(
-            child: CircularProgressIndicator(
-              color: AppColors.primaryDark,
-              strokeWidth: 2,
+        return constrain(
+          const ColoredBox(
+            color: AppColors.accent,
+            child: Center(
+              child: CircularProgressIndicator(
+                color: AppColors.primaryDark,
+                strokeWidth: 2,
+              ),
             ),
           ),
         );
       },
-      errorBuilder: (_, _, _) => const ColoredBox(
-        color: AppColors.accent,
-        child: Center(
-          child: Icon(
-            Icons.image_outlined,
-            color: AppColors.primaryDark,
-            size: 42,
+      errorBuilder: (_, _, _) => constrain(
+        const ColoredBox(
+          color: AppColors.accent,
+          child: Center(
+            child: Icon(
+              Icons.image_outlined,
+              color: AppColors.primaryDark,
+              size: 42,
+            ),
           ),
         ),
       ),
     );
 
-    if (borderRadius == null) return image;
-    return ClipRRect(borderRadius: borderRadius!, child: image);
+    final constrainedImage = constrain(image);
+    if (borderRadius == null) return constrainedImage;
+    return ClipRRect(borderRadius: borderRadius!, child: constrainedImage);
   }
 }
 

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:origami/app/routes.dart';
 import 'package:origami/app/theme.dart';
 import 'package:origami/core/auth/auth_session.dart';
+import 'package:origami/core/profile/profile_api.dart';
 import 'package:origami/core/profile/user_search_api.dart';
 import 'package:origami/core/state/app_state.dart';
 import 'package:origami/core/widgets/common.dart';
@@ -21,6 +22,8 @@ class _SearchUsersScreenState extends State<SearchUsersScreen> {
   final List<String> _recentIds = [];
 
   UserSearchApi? _api;
+  ProfileApi? _profileApi;
+  final Set<String> _busyUserIds = {};
   Timer? _debounce;
   bool _loading = false;
   String? _error;
@@ -29,7 +32,9 @@ class _SearchUsersScreenState extends State<SearchUsersScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _api ??= UserSearchApi(AuthScope.of(context, listen: false).apiClient);
+    final client = AuthScope.of(context, listen: false).apiClient;
+    _api ??= UserSearchApi(client);
+    _profileApi ??= ProfileApi(client);
     if (_resultIds.isEmpty && !_loading) _search();
   }
 
@@ -68,6 +73,26 @@ class _SearchUsersScreenState extends State<SearchUsersScreen> {
       setState(() => _error = error.message);
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _toggleFollow(UserProfileData user) async {
+    final api = _profileApi;
+    if (api == null || _busyUserIds.contains(user.id)) return;
+    setState(() => _busyUserIds.add(user.id));
+    try {
+      final updated = user.isFollowing
+          ? await api.unfollow(user.id)
+          : await api.follow(user.id);
+      if (!mounted) return;
+      AppStateScope.of(
+        context,
+        listen: false,
+      ).applyFollowResult(updated, wasFollowing: user.isFollowing);
+    } on ProfileFailure catch (error) {
+      if (mounted) showAppMessage(context, error.message);
+    } finally {
+      if (mounted) setState(() => _busyUserIds.remove(user.id));
     }
   }
 
@@ -185,7 +210,8 @@ class _SearchUsersScreenState extends State<SearchUsersScreen> {
                   onTap: () => _openProfile(context, user.id),
                   trailing: _FollowButton(
                     following: user.isFollowing,
-                    onPressed: () => state.toggleFollow(user.id),
+                    busy: _busyUserIds.contains(user.id),
+                    onPressed: () => _toggleFollow(user),
                   ),
                 ),
               ),
@@ -296,13 +322,24 @@ class _SearchUserAvatar extends StatelessWidget {
 }
 
 class _FollowButton extends StatelessWidget {
-  const _FollowButton({required this.following, required this.onPressed});
+  const _FollowButton({
+    required this.following,
+    required this.busy,
+    required this.onPressed,
+  });
 
   final bool following;
+  final bool busy;
   final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
+    if (busy) {
+      return const SizedBox.square(
+        dimension: 28,
+        child: CircularProgressIndicator(strokeWidth: 2),
+      );
+    }
     return following
         ? OutlinedButton(
             onPressed: onPressed,

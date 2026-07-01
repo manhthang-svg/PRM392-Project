@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:intl/intl.dart';
 import 'package:origami/core/library/tutorial_models.dart';
 import 'package:origami/core/newsfeed/newsfeed_api.dart';
 import 'package:origami/core/profile/profile_api.dart';
@@ -70,6 +71,7 @@ class UserProfileData {
   bool get isFollower => _isFollower ?? false;
 
   UserProfileData copyWith({
+    String? id,
     String? name,
     String? handle,
     String? bio,
@@ -82,7 +84,7 @@ class UserProfileData {
     List<String>? works,
   }) {
     return UserProfileData(
-      id: id,
+      id: id ?? this.id,
       name: name ?? this.name,
       handle: handle ?? this.handle,
       bio: bio ?? this.bio,
@@ -547,32 +549,7 @@ class AppState extends ChangeNotifier {
   final Set<String> followerUserIds = {};
   final Set<String> followingUserIds = {};
 
-  final List<FoldHistoryData> foldHistory = [
-    const FoldHistoryData(
-      id: 'fold-1',
-      title: 'Classic Red Crane',
-      image: artworkOne,
-      completedDate: 'May 15, 2026',
-      difficulty: 'Easy',
-      duration: '18 min',
-    ),
-    const FoldHistoryData(
-      id: 'fold-2',
-      title: 'Lotus Flower',
-      image: artworkTwo,
-      completedDate: 'May 20, 2026',
-      difficulty: 'Medium',
-      duration: '31 min',
-    ),
-    const FoldHistoryData(
-      id: 'fold-3',
-      title: 'Geometric Star',
-      image: artworkThree,
-      completedDate: 'May 25, 2026',
-      difficulty: 'Hard',
-      duration: '52 min',
-    ),
-  ];
+  final List<FoldHistoryData> foldHistory = [];
 
   List<TutorialData> get savedTutorials => tutorials
       .where((tutorial) => savedTutorialIds.contains(tutorial.id))
@@ -877,6 +854,7 @@ class AppState extends ChangeNotifier {
 
   void applyCurrentUserProfile(UserProfileDto profile) {
     currentUser = currentUser.copyWith(
+      id: profile.id,
       name: profile.displayName.isEmpty
           ? profile.username
           : profile.displayName,
@@ -897,12 +875,18 @@ class AppState extends ChangeNotifier {
     final index = users.indexWhere((user) => user.id == userId);
     if (index < 0) return;
     final user = users[index];
+    final nextFollowing = !user.isFollowing;
     users[index] = user.copyWith(
-      isFollowing: !user.isFollowing,
-      followers: user.followers + (user.isFollowing ? -1 : 1),
+      isFollowing: nextFollowing,
+      followers: user.followers + (nextFollowing ? 1 : -1),
     );
+    if (nextFollowing) {
+      followingUserIds.add(userId);
+    } else {
+      followingUserIds.remove(userId);
+    }
     currentUser = currentUser.copyWith(
-      following: currentUser.following + (user.isFollowing ? -1 : 1),
+      following: currentUser.following + (nextFollowing ? 1 : -1),
     );
     notifyListeners();
   }
@@ -944,7 +928,7 @@ class AppState extends ChangeNotifier {
         id: 'fold-${DateTime.now().microsecondsSinceEpoch}',
         title: title,
         image: image,
-        completedDate: 'June 10, 2026',
+        completedDate: DateFormat('MMM d, yyyy').format(DateTime.now()),
         difficulty: difficulty,
         duration: duration,
       ),
