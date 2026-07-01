@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:origami/core/library/tutorial_models.dart';
+import 'package:origami/core/newsfeed/newsfeed_api.dart';
 import 'package:origami/core/profile/profile_api.dart';
 
 const artworkOne =
@@ -101,26 +102,44 @@ class FeedPostData {
     required this.authorId,
     required this.authorName,
     required this.caption,
-    required this.createdLabel,
+    String? createdLabel,
     this.networkImages = const [],
     this.localImages = const [],
     this.tutorial,
+    this.tutorialId,
+    this.status = 'PUBLISHED',
+    this.rejectionReason = '',
+    this.authorAvatarUrl = '',
+    this.likedByMe = false,
     this.likes = 0,
     this.comments = 0,
+    this.createdAt,
     List<FeedCommentData> commentItems = const [],
-  }) : _commentItems = List.of(commentItems);
+  }) : _createdLabel = createdLabel,
+       _commentItems = List.of(commentItems);
 
   final String id;
   final String authorId;
   String authorName;
   final String caption;
-  final String createdLabel;
+  final String? _createdLabel;
   final List<String> networkImages;
   final List<XFile> localImages;
   final String? tutorial;
+  final String? tutorialId;
+  final String status;
+  final String rejectionReason;
+  final String authorAvatarUrl;
+  bool likedByMe;
   int likes;
   int comments;
   List<FeedCommentData>? _commentItems;
+
+  String get createdLabel => createdAt == null
+      ? (_createdLabel ?? 'Just now')
+      : _relativeLabel(createdAt);
+
+  final DateTime? createdAt;
 
   // Existing objects created before this field was added receive null on hot
   // reload, so initialize them lazily when comments are first opened.
@@ -130,16 +149,80 @@ class FeedPostData {
 
 class FeedCommentData {
   const FeedCommentData({
+    this.id = '',
+    this.postId = '',
+    this.parentId,
+    this.replyToUserId,
     required this.authorId,
     required this.authorName,
     required this.message,
-    required this.createdLabel,
-  });
+    String? createdLabel,
+    this.authorAvatarUrl = '',
+    this.likeCount = 0,
+    this.likedByCurrentUser = false,
+    this.replyCount = 0,
+    this.deleted = false,
+    this.edited = false,
+    this.canEdit = false,
+    this.canDelete = false,
+    this.createdAt,
+    this.updatedAt,
+  }) : _createdLabel = createdLabel;
 
+  final String id;
+  final String postId;
+  final String? parentId;
+  final String? replyToUserId;
   final String authorId;
   final String authorName;
+  final String authorAvatarUrl;
   final String message;
-  final String createdLabel;
+  final String? _createdLabel;
+  final int likeCount;
+  final bool likedByCurrentUser;
+  final int replyCount;
+  final bool deleted;
+  final bool edited;
+  final bool canEdit;
+  final bool canDelete;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
+
+  String get createdLabel => createdAt == null
+      ? (_createdLabel ?? 'Just now')
+      : _relativeLabel(createdAt);
+
+  FeedCommentData copyWith({
+    String? message,
+    int? likeCount,
+    bool? likedByCurrentUser,
+    int? replyCount,
+    bool? deleted,
+    bool? edited,
+    bool? canEdit,
+    bool? canDelete,
+  }) {
+    return FeedCommentData(
+      id: id,
+      postId: postId,
+      parentId: parentId,
+      replyToUserId: replyToUserId,
+      authorId: authorId,
+      authorName: authorName,
+      authorAvatarUrl: authorAvatarUrl,
+      message: message ?? this.message,
+      createdLabel: createdLabel,
+      likeCount: likeCount ?? this.likeCount,
+      likedByCurrentUser: likedByCurrentUser ?? this.likedByCurrentUser,
+      replyCount: replyCount ?? this.replyCount,
+      deleted: deleted ?? this.deleted,
+      edited: edited ?? this.edited,
+      canEdit: canEdit ?? this.canEdit,
+      canDelete: canDelete ?? this.canDelete,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+    );
+  }
 }
 
 class InstructionStepData {
@@ -520,6 +603,111 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  void replaceFeedPosts(List<NewsfeedPostDto> values) {
+    posts
+      ..clear()
+      ..addAll(values.map(_feedPostFromDto));
+    notifyListeners();
+  }
+
+  void upsertPostFromServer(NewsfeedPostDto value) {
+    final post = _feedPostFromDto(value);
+    final index = posts.indexWhere((item) => item.id == post.id);
+    if (index >= 0) {
+      posts[index] = post;
+    } else {
+      posts.insert(0, post);
+    }
+    notifyListeners();
+  }
+
+  void replacePostComments(String postId, List<NewsfeedCommentDto> values) {
+    final post = posts.firstWhere((item) => item.id == postId);
+    post.commentItems
+      ..clear()
+      ..addAll(values.map(_feedCommentFromDto));
+    post.comments = values.length;
+    notifyListeners();
+  }
+
+  void appendPostComments(String postId, List<NewsfeedCommentDto> values) {
+    final post = posts.firstWhere((item) => item.id == postId);
+    for (final value in values) {
+      final comment = _feedCommentFromDto(value);
+      final index = post.commentItems.indexWhere(
+        (item) => item.id == comment.id,
+      );
+      if (index >= 0) {
+        post.commentItems[index] = comment;
+      } else {
+        post.commentItems.add(comment);
+      }
+    }
+    post.comments = post.commentItems.length;
+    notifyListeners();
+  }
+
+  void addPostCommentFromServer(String postId, NewsfeedCommentDto value) {
+    final post = posts.firstWhere((item) => item.id == postId);
+    post.commentItems.add(_feedCommentFromDto(value));
+    post.comments++;
+    notifyListeners();
+  }
+
+  void upsertPostCommentFromServer(String postId, NewsfeedCommentDto value) {
+    final post = posts.firstWhere((item) => item.id == postId);
+    final comment = _feedCommentFromDto(value);
+    final index = post.commentItems.indexWhere((item) => item.id == comment.id);
+    if (index >= 0) {
+      post.commentItems[index] = comment;
+    } else {
+      post.commentItems.add(comment);
+      post.comments++;
+    }
+    notifyListeners();
+  }
+
+  FeedPostData _feedPostFromDto(NewsfeedPostDto value) {
+    return FeedPostData(
+      id: value.id,
+      authorId: value.authorId,
+      authorName: value.authorName,
+      authorAvatarUrl: value.authorAvatarUrl,
+      caption: value.caption,
+      status: value.status,
+      rejectionReason: value.rejectionReason ?? '',
+      networkImages: value.mediaUrls,
+      tutorial: value.tutorialTitle,
+      tutorialId: value.tutorialId,
+      likes: value.likes,
+      comments: value.comments,
+      likedByMe: value.likedByMe,
+      createdAt: value.createdAt,
+    );
+  }
+
+  FeedCommentData _feedCommentFromDto(NewsfeedCommentDto value) {
+    return FeedCommentData(
+      id: value.id,
+      postId: value.postId,
+      parentId: value.parentId,
+      replyToUserId: value.replyToUserId,
+      authorId: value.authorId,
+      authorName: value.authorName,
+      authorAvatarUrl: value.authorAvatarUrl,
+      message: value.content,
+      likeCount: value.likeCount,
+      likedByCurrentUser: value.likedByCurrentUser,
+      replyCount: value.replyCount,
+      deleted: value.deleted,
+      edited: value.edited,
+      canEdit: value.canEdit,
+      canDelete: value.canDelete,
+      createdAt: value.createdAt,
+      updatedAt: value.updatedAt,
+    );
+  }
+
   void addInstruction(InstructionSubmissionData submission) {
     submissions.insert(0, submission);
     notifyListeners();
@@ -666,6 +854,7 @@ class AppState extends ChangeNotifier {
     final post = posts.firstWhere((item) => item.id == postId);
     post.commentItems.add(
       FeedCommentData(
+        id: 'local-${DateTime.now().microsecondsSinceEpoch}',
         authorId: currentUser.id,
         authorName: currentUser.name,
         message: value,
@@ -675,6 +864,16 @@ class AppState extends ChangeNotifier {
     post.comments++;
     notifyListeners();
   }
+}
+
+String _relativeLabel(DateTime? value) {
+  if (value == null) return 'Just now';
+  final diff = DateTime.now().difference(value.toLocal());
+  if (diff.inMinutes < 1) return 'Just now';
+  if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+  if (diff.inHours < 24) return '${diff.inHours}h ago';
+  if (diff.inDays < 7) return '${diff.inDays}d ago';
+  return '${value.day}/${value.month}/${value.year}';
 }
 
 class AppStateScope extends InheritedNotifier<AppState> {

@@ -59,18 +59,21 @@ class _LoginScreenState extends State<LoginScreen> {
             children: [
               Text('Choose demo account', style: serifTitle(22)),
               const SizedBox(height: 10),
-              _DemoAccountTile(
-                icon: Icons.person_outline,
-                title: 'Demo User',
-                subtitle: _DemoAccount.user.email,
-                onTap: () => Navigator.pop(context, _DemoAccount.user),
-              ),
-              const SizedBox(height: 8),
-              _DemoAccountTile(
-                icon: Icons.admin_panel_settings_outlined,
-                title: 'Demo Admin',
-                subtitle: _DemoAccount.admin.email,
-                onTap: () => Navigator.pop(context, _DemoAccount.admin),
+              Flexible(
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: _DemoAccount.values.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 8),
+                  itemBuilder: (context, index) {
+                    final account = _DemoAccount.values[index];
+                    return _DemoAccountTile(
+                      icon: account.icon,
+                      title: account.label,
+                      subtitle: account.email,
+                      onTap: () => Navigator.pop(context, account),
+                    );
+                  },
+                ),
               ),
             ],
           ),
@@ -268,17 +271,35 @@ enum _DemoAccount {
     label: 'Demo Admin',
     email: 'admin123@gmail.com',
     password: '032five794127',
+    icon: Icons.admin_panel_settings_outlined,
+  ),
+  user01(
+    label: 'Demo User 01',
+    email: 'user01@gmail.com',
+    password: '032five794127',
+  ),
+  user02(
+    label: 'Demo User 02',
+    email: 'user02@gmail.com',
+    password: '032five794127',
+  ),
+  user03(
+    label: 'Demo User 03',
+    email: 'user03@gmail.com',
+    password: '032five794127',
   );
 
   const _DemoAccount({
     required this.label,
     required this.email,
     required this.password,
+    this.icon = Icons.person_outline,
   });
 
   final String label;
   final String email;
   final String password;
+  final IconData icon;
 }
 
 class _DemoAccountTile extends StatelessWidget {
